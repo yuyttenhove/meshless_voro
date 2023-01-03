@@ -1,5 +1,3 @@
-use std::mem::swap;
-
 use glam::{DMat3, DVec3};
 
 use crate::space::Space;
@@ -185,21 +183,21 @@ impl VoronoiCell {
     }
 }
 
-struct VoronoiFace {
+pub struct VoronoiFace {
     left: usize,
     right: usize,
     area: f64,
     midpoint: DVec3,
 }
 
-struct Voronoi {
+pub struct Voronoi {
     anchor: DVec3,
     width: DVec3,
     cells: Vec<VoronoiCell>,
 }
 
 impl Voronoi {
-    fn build(generators: &[DVec3], anchor: DVec3, width: DVec3) -> Self {
+    pub fn build(generators: &[DVec3], anchor: DVec3, width: DVec3) -> Self {
         let max_cell_width =
             (5. * (width.x * width.y * width.z) / generators.len() as f64).powf(1. / 2.);
         let mut space = Space::new(anchor, width, max_cell_width);
@@ -221,11 +219,11 @@ impl Voronoi {
         }
     }
 
-    fn volumes(&self) -> Vec<f64> {
+    pub fn volumes(&self) -> Vec<f64> {
         todo!()
     }
 
-    fn faces(&self) -> Vec<VoronoiFace> {
+    pub fn faces(&self) -> Vec<VoronoiFace> {
         todo!()
     }
 }
@@ -235,7 +233,7 @@ mod test {
     use super::*;
     use rand::{distributions::Uniform, prelude::*};
 
-    fn gererators2D() -> Vec<DVec3> {
+    fn gererators_2d() -> Vec<DVec3> {
         let anchor = DVec3::splat(1.);
         let mut p_x = vec![];
         let mut rng = thread_rng();
@@ -294,7 +292,7 @@ mod test {
 
     #[test]
     fn test_voronoi() {
-        let generators = gererators2D();
+        let generators = gererators_2d();
         let voronoi = Voronoi::build(&generators, DVec3::splat(1.), DVec3::splat(2.));
         assert_eq!(voronoi.cells.len(), generators.len());
     }
