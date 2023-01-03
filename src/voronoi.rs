@@ -52,7 +52,7 @@ struct VoronoiCell {
 }
 
 impl VoronoiCell {
-    /// Initialize each boronoi cell as the bounding box of the simulation volume.
+    /// Initialize each voronoi cell as the bounding box of the simulation volume.
     fn init(loc: DVec3, anchor: DVec3, width: DVec3) -> Self {
         let clipping_planes = vec![
             HalfSpace::new(DVec3::X, anchor),
