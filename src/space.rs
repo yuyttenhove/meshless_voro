@@ -4,7 +4,7 @@ use std::collections::BinaryHeap;
 
 use crate::part::Part;
 
-pub struct Cell {
+struct Cell {
     loc: DVec3,
     width: DVec3,
     offset: usize,
@@ -45,6 +45,7 @@ impl Cell {
 }
 
 pub struct Space {
+    anchor: DVec3,
     width: DVec3,
     cdim: UVec3,
     cells: Vec<Cell>,
@@ -52,19 +53,16 @@ pub struct Space {
 }
 
 impl Space {
-    pub fn new(width: f64, n_cells: u32) -> Self {
+    pub fn new(anchor: DVec3, width: DVec3, max_cell_width: f64) -> Self {
         let mut cells = vec![];
-        let c_width = width / n_cells as f64;
-        let c_width = DVec3 {
-            x: c_width,
-            y: c_width,
-            z: c_width,
-        };
-        for i in 0..n_cells {
-            for j in 0..n_cells {
-                for k in 0..n_cells {
+        let cdim = (width / max_cell_width).ceil();
+        let c_width = width / cdim;
+        let cdim = cdim.as_uvec3();
+        for i in 0..cdim.x {
+            for j in 0..cdim.y {
+                for k in 0..cdim.z {
                     cells.push(Cell {
-                        loc: DVec3 {
+                        loc: anchor + DVec3 {
                             x: i as f64 * c_width.x,
                             y: j as f64 * c_width.x,
                             z: k as f64 * c_width.x,
@@ -78,39 +76,33 @@ impl Space {
         }
 
         Space {
-            width: DVec3 {
-                x: width,
-                y: width,
-                z: width,
-            },
-            cdim: UVec3 {
-                x: n_cells,
-                y: n_cells,
-                z: n_cells,
-            },
+            anchor,
+            width,
+            cdim,
             cells,
             parts: vec![],
         }
     }
 
-    pub fn add_parts(&mut self, parts: &[DVec3]) {
+    pub fn add_parts(&mut self, positions: &[DVec3]) {
         // Determine the cid of all positions and create parts
-        let mut parts: Vec<Part> = parts
+        let mut parts: Vec<Part> = positions
             .iter()
             .map(|p_x| {
+                let rel_pos = *p_x - self.anchor;
                 assert!(
-                    p_x.x >= 0.
-                        && p_x.x < self.width.x
-                        && p_x.y >= 0.
-                        && p_x.y < self.width.y
-                        && p_x.z >= 0.
-                        && p_x.z < self.width.z,
+                    rel_pos.x >= 0.
+                        && rel_pos.x < self.width.x
+                        && rel_pos.y >= 0.
+                        && rel_pos.y < self.width.y
+                        && rel_pos.z >= 0.
+                        && rel_pos.z < self.width.z,
                     "Part falls outside domain!"
                 );
 
-                let i = (p_x.x / self.width.x * self.cdim.x as f64).floor() as i32;
-                let j = (p_x.y / self.width.y * self.cdim.y as f64).floor() as i32;
-                let k = (p_x.z / self.width.z * self.cdim.z as f64).floor() as i32;
+                let i = (rel_pos.x / self.width.x * self.cdim.x as f64).floor() as i32;
+                let j = (rel_pos.y / self.width.y * self.cdim.y as f64).floor() as i32;
+                let k = (rel_pos.z / self.width.z * self.cdim.z as f64).floor() as i32;
                 let cid = self
                     .get_cid(i, j, k)
                     .expect("Index out of bounds during construction!");
@@ -289,14 +281,16 @@ mod tests {
     use rand::{distributions::Uniform, prelude::*};
 
     fn example_space() -> Space {
-        let mut space = Space::new(2., 4);
+        let anchor = DVec3::splat(1.);
+        let width = DVec3::splat(2.);
+        let mut space = Space::new(anchor, width, 0.5);
         let mut p_x = vec![];
         let mut rng = thread_rng();
         let distr = Uniform::new(0., 0.5);
         for i in 0..4 {
             for j in 0..4 {
                 for k in 0..4 {
-                    let cell_anchor = DVec3 {
+                    let cell_anchor = anchor + DVec3 {
                         x: i as f64 * 0.5,
                         y: j as f64 * 0.5,
                         z: k as f64 * 0.5,
@@ -342,7 +336,7 @@ mod tests {
 
     #[test]
     fn test_get_r_ring() {
-        let space = Space::new(2., 5);
+        let space = Space::new(DVec3::ZERO, DVec3::splat(2.5), 0.5);
 
         let center_cid = space.get_cid(2, 2, 2).unwrap();
 
@@ -379,9 +373,9 @@ mod tests {
                         > part.distance_squared(&space.parts[nn[j - 1]])
                 )
             }
-            
+
             // Get max distance to knn
-            let max_d_2 = part.distance_squared(&space.parts[nn[k-1]]);
+            let max_d_2 = part.distance_squared(&space.parts[nn[k - 1]]);
 
             // loop over the other parts and check that they are either in the nearest neighbours or farther away than max_d_2
             for (j, other) in space.parts.iter().enumerate() {
