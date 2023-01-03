@@ -170,7 +170,7 @@ impl Space {
         let mut nn = Vec::with_capacity(self.count());
         for (p_idx, part) in self.parts.iter().enumerate() {
             let mut h = BinaryHeap::<HeapEntry>::new();
-            let mut this_nn = Vec::with_capacity(k);
+            let mut this_nn = vec![0; k];
             let cid = part.cid();
             let dist_to_face = self.cells[cid].min_distance_to_face(part.x());
 
@@ -205,8 +205,7 @@ impl Space {
                                 d_2,
                             });
                         } else {
-                            let max_d_2 =
-                                h.peek().expect("Heap cannot be empty!").d_2;
+                            let max_d_2 = h.peek().expect("Heap cannot be empty!").d_2;
                             if d_2 < max_d_2 {
                                 h.pop();
                                 h.push(HeapEntry {
@@ -228,13 +227,13 @@ impl Space {
                 r += 1;
             }
 
-            // now collect the particles nearest neighbours from the MaxHeap
+            // now collect the particles nearest neighbours from the MaxHeap in increasing distance
             debug_assert_eq!(h.len(), k);
-            for _ in 0..k {
+            for i in (0..k).rev() {
                 let entry = h
                     .pop()
                     .expect("We should be able to pop k entries from a Heap of length k");
-                this_nn.push(entry.idx);
+                this_nn[i] = entry.idx;
             }
             nn.push(this_nn);
         }
@@ -372,11 +371,17 @@ mod tests {
         // brute force check
         for (i, part) in space.parts.iter().enumerate() {
             let nn = &knn[i];
-            let max_d_2 = nn
-                .iter()
-                .map(|idx| space.parts[*idx].distance_squared(part))
-                .max_by(|a, b| a.partial_cmp(b).unwrap())
-                .unwrap();
+
+            // check that the neighbours are ordered in increasing distance:
+            for j in 1..k {
+                assert!(
+                    part.distance_squared(&space.parts[nn[j]])
+                        > part.distance_squared(&space.parts[nn[j - 1]])
+                )
+            }
+            
+            // Get max distance to knn
+            let max_d_2 = part.distance_squared(&space.parts[nn[k-1]]);
 
             // loop over the other parts and check that they are either in the nearest neighbours or farther away than max_d_2
             for (j, other) in space.parts.iter().enumerate() {
