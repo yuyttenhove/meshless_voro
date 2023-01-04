@@ -1,6 +1,6 @@
 use glam::{DMat3, DVec3};
 
-use crate::space::Space;
+use crate::{simple_cycle::SimpleCycle, space::Space};
 
 struct HalfSpace {
     n: DVec3,
@@ -44,14 +44,14 @@ impl Vertex {
     }
 }
 
-struct VoronoiCell {
+struct ConvexCell {
     loc: DVec3,
     clipping_planes: Vec<HalfSpace>,
     vertices: Vec<Vertex>,
     safety_radius: f64,
 }
 
-impl VoronoiCell {
+impl ConvexCell {
     /// Initialize each voronoi cell as the bounding box of the simulation volume.
     fn init(loc: DVec3, anchor: DVec3, width: DVec3) -> Self {
         let clipping_planes = vec![
@@ -72,7 +72,7 @@ impl VoronoiCell {
             Vertex::from_dual(2, 4, 1, &clipping_planes),
             Vertex::from_dual(4, 3, 1, &clipping_planes),
         ];
-        let mut cell = VoronoiCell {
+        let mut cell = ConvexCell {
             loc,
             clipping_planes,
             vertices,
@@ -123,10 +123,10 @@ impl VoronoiCell {
             // finally we can *realy* remove the vertices.
             self.vertices.truncate(num_v);
             // Add new vertices constructed from the new clipping plane and the boundary
-            for edge in boundary.windows(2) {
+            for i in 0..boundary.len() {
                 self.vertices.push(Vertex::from_dual(
-                    edge[0],
-                    edge[1],
+                    boundary[i],
+                    boundary[i + 1],
                     p_idx,
                     &self.clipping_planes,
                 ));
@@ -135,42 +135,32 @@ impl VoronoiCell {
         }
     }
 
-    fn compute_boundary(vertices: &mut [Vertex]) -> Vec<usize> {
-        let mut boundary = vec![
-            vertices[0].dual.0,
-            vertices[0].dual.1,
-            vertices[0].dual.2,
-            vertices[0].dual.0,
-        ];
+    fn compute_boundary(vertices: &mut [Vertex]) -> SimpleCycle<usize> {
+        let mut boundary =
+            SimpleCycle::new(vertices[0].dual.0, vertices[0].dual.1, vertices[0].dual.2);
+
         for i in 1..vertices.len() {
             // Look for a suitable next vertex to extend the boundary
             let mut idx = i;
-            let (insertion_index, insertion_value) = loop {
+            loop {
                 assert!(
                     idx < vertices.len(),
                     "No suitable vertex found to extend boundary!"
                 );
                 let vertex = &vertices[idx].dual;
-                let in_boundary = (
-                    boundary.iter().position(|v| v == &vertex.0),
-                    boundary.iter().position(|v| v == &vertex.1),
-                    boundary.iter().position(|v| v == &vertex.2),
-                );
-                match in_boundary {
-                    (Some(idx_0), Some(idx_1), None) => break (idx_0.min(idx_1), vertex.2),
-                    (Some(idx_0), None, Some(idx_2)) => break (idx_0.min(idx_2), vertex.1),
-                    (None, Some(idx_1), Some(idx_2)) => break (idx_1.min(idx_2), vertex.0),
-                    _ => {
-                        idx += 1;
+                match boundary.try_extend(vertex.0, vertex.1, vertex.2) {
+                    Ok(()) => {
+                        if idx > i {
+                            vertices.swap(i, idx);
+                        }
+                        break;
                     }
+                    Err(()) => idx += 1,
                 }
-            };
-            // swap the suitalble vertex to the front of the array
-            vertices.swap(i, idx);
-            // insert the next boundary piece
-            boundary.insert(insertion_index, insertion_value);
+            }
         }
 
+        debug_assert!(boundary.is_valid());
         boundary
     }
 
@@ -190,6 +180,34 @@ pub struct VoronoiFace {
     midpoint: DVec3,
 }
 
+impl VoronoiFace {
+    pub fn left(&self) -> usize {
+        self.left
+    }
+
+    pub fn right(&self) -> usize {
+        self.right
+    }
+
+    pub fn area(&self) -> f64 {
+        self.area
+    }
+
+    pub fn midpoint(&self) -> DVec3 {
+        self.midpoint
+    }
+}
+
+pub struct VoronoiCell {
+
+}
+
+impl VoronoiCell {
+    fn from_convex_cell(convex_cell: &ConvexCell, generators: &[DVec3]) -> VoronoiCell {
+        todo!()
+    }
+}
+
 pub struct Voronoi {
     anchor: DVec3,
     width: DVec3,
@@ -197,34 +215,38 @@ pub struct Voronoi {
 }
 
 impl Voronoi {
-    pub fn build(generators: &[DVec3], anchor: DVec3, width: DVec3) -> Self {
+    /// Construct a Voronoi tesselation using the VoroGPU algorithm with `k` nearest neighbours.
+    pub fn build(generators: &[DVec3], anchor: DVec3, width: DVec3, k: usize) -> Self {
         let max_cell_width =
             (5. * (width.x * width.y * width.z) / generators.len() as f64).powf(1. / 2.);
         let mut space = Space::new(anchor, width, max_cell_width);
         space.add_parts(generators);
-        let knn = space.knn(40);
+        let knn = space.knn(k);
 
-        let mut voronoi_cells: Vec<VoronoiCell> = generators
-            .iter()
-            .map(|g| VoronoiCell::init(*g, anchor, width))
-            .collect();
-        for (i, voronoi_cell) in voronoi_cells.iter_mut().enumerate() {
-            voronoi_cell.build(generators, &knn[i])
+        let mut cells = Vec::with_capacity(generators.len());
+        for (i, generator) in generators.iter().enumerate() {
+            let mut convex_cell = ConvexCell::init(*generator, anchor, width);
+            convex_cell.build(generators, &knn[i]);
+            cells[i] = VoronoiCell::from_convex_cell(&convex_cell, generators);
         }
 
         Voronoi {
             anchor,
             width,
-            cells: voronoi_cells,
+            cells,
         }
     }
 
-    pub fn volumes(&self) -> Vec<f64> {
-        todo!()
+    pub fn anchor(&self) -> DVec3 {
+        self.anchor
     }
 
-    pub fn faces(&self) -> Vec<VoronoiFace> {
-        todo!()
+    pub fn width(&self) -> DVec3 {
+        self.width
+    }
+
+    pub fn cells(&self) -> &[VoronoiCell] {
+        self.cells.as_ref()
     }
 }
 
@@ -233,7 +255,7 @@ mod test {
     use super::*;
     use rand::{distributions::Uniform, prelude::*};
 
-    fn gererators_2d() -> Vec<DVec3> {
+    fn generators_2d() -> Vec<DVec3> {
         let anchor = DVec3::splat(1.);
         let mut p_x = vec![];
         let mut rng = thread_rng();
@@ -247,12 +269,12 @@ mod test {
                         y: j as f64 * 0.5,
                         z: k as f64 * 0.5,
                     };
-                for _ in 0..12 {
+                for _ in 0..3 {
                     // Add 3 parts per cell
                     let rel_pos = DVec3 {
                         x: rng.sample(distr),
                         y: rng.sample(distr),
-                        z: rng.sample(distr),
+                        z: 0.,
                     };
                     p_x.push(cell_anchor + rel_pos);
                 }
@@ -266,7 +288,7 @@ mod test {
         let anchor = DVec3::splat(1.);
         let width = DVec3::splat(3.);
         let loc = DVec3::splat(3.);
-        let cell = VoronoiCell::init(loc, anchor, width);
+        let cell = ConvexCell::init(loc, anchor, width);
 
         assert_eq!(cell.vertices.len(), 8);
         assert_eq!(cell.clipping_planes.len(), 6);
@@ -278,9 +300,9 @@ mod test {
         let anchor = DVec3::splat(1.);
         let width = DVec3::splat(2.);
         let loc = DVec3::splat(2.);
-        let mut cell = VoronoiCell::init(loc, anchor, width);
+        let mut cell = ConvexCell::init(loc, anchor, width);
 
-        let ngb = DVec3::splat(3.5);
+        let ngb = DVec3::splat(2.5);
         let dx = cell.loc - ngb;
         let dist = dx.length();
         let n = dx / dist;
@@ -292,8 +314,8 @@ mod test {
 
     #[test]
     fn test_voronoi() {
-        let generators = gererators_2d();
-        let voronoi = Voronoi::build(&generators, DVec3::splat(1.), DVec3::splat(2.));
+        let generators = generators_2d();
+        let voronoi = Voronoi::build(&generators, DVec3::splat(1.), DVec3::splat(2.), 40);
         assert_eq!(voronoi.cells.len(), generators.len());
     }
 }
