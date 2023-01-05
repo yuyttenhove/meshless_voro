@@ -232,11 +232,11 @@ fn test_voronoi() {
 
 #[test]
 fn test_2_d() {
-    let pert = 0.5;
+    let pert = 0.;
     let anchor = DVec3::ZERO;
     let width = DVec3::splat(1.);
-    let generators = perturbed_plane(anchor, width, 5, pert);
-    let voronoi = Voronoi::build(&generators, anchor, width, 24);
+    let generators = perturbed_plane(anchor, width, 4, pert);
+    let voronoi = Voronoi::build(&generators, anchor, width, 15);
     let mut file = File::create("faces.txt").unwrap();
     for face in &voronoi.faces {
         let n = voronoi.cells[face.right].loc - voronoi.cells[face.left].loc;
@@ -248,6 +248,7 @@ fn test_2_d() {
         .unwrap();
     }
     let mut file = File::create("cells.txt").unwrap();
+    let mut total_area = 0.;
     for cell in &voronoi.cells {
         writeln!(
             file,
@@ -260,6 +261,8 @@ fn test_2_d() {
             cell.centroid.y,
             cell.centroid.z
         )
-        .unwrap()
+        .unwrap();
+        total_area += cell.volume
     }
+    assert_approx_eq!(f64, total_area, 1.);
 }
