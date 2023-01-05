@@ -156,7 +156,7 @@ impl Space {
         }
 
         // Check that this is possible
-        assert!(k + 1 < self.count());
+        assert!(k < self.count());
 
         // loop over parts and find their nearest neighbours
         let mut nn = Vec::with_capacity(self.count());
@@ -168,6 +168,11 @@ impl Space {
 
             let mut r = 0;
             loop {
+                if k == 0 {
+                    // Nothing to do here
+                    break;
+                }
+                
                 let r_ring = self.get_r_ring(cid, r);
                 for ngb_cid in r_ring {
                     let ngb_cell = &self.cells[ngb_cid];

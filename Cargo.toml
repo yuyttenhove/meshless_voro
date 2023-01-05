@@ -10,3 +10,4 @@ glam = "0.22"
 
 [dev-dependencies]
 rand = "0.8"
+float-cmp = "0.9"
