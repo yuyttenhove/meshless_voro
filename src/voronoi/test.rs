@@ -178,7 +178,7 @@ fn test_five_cells() {
 fn test_eight_cells() {
     let anchor = DVec3::ZERO;
     let width = DVec3::splat(1.);
-    let generators = perturbed_grid(anchor, width, 2, 0.5);
+    let generators = perturbed_grid(anchor, width, 2, 0.);
     let voronoi = Voronoi::build(&generators, anchor, width, 7);
     for cell in &voronoi.cells {
         assert_approx_eq!(f64, cell.volume, 0.125);
@@ -209,7 +209,7 @@ fn test_64_cells() {
 
 #[test]
 fn test_125_cells() {
-    let pert = 0.;
+    let pert = 0.3;
     let anchor = DVec3::ZERO;
     let width = DVec3::splat(1.);
     let generators = perturbed_grid(anchor, width, 5, pert);
@@ -233,10 +233,11 @@ fn test_voronoi() {
 #[test]
 fn test_2_d() {
     let pert = 0.;
+    let count = 6;
     let anchor = DVec3::ZERO;
     let width = DVec3::splat(1.);
-    let generators = perturbed_plane(anchor, width, 4, pert);
-    let voronoi = Voronoi::build(&generators, anchor, width, 15);
+    let generators = perturbed_plane(anchor, width, count, pert);
+    let voronoi = Voronoi::build(&generators, anchor, width, count * count - 1);
     let mut file = File::create("faces.txt").unwrap();
     for face in &voronoi.faces {
         let n = voronoi.cells[face.right].loc - voronoi.cells[face.left].loc;

@@ -406,14 +406,14 @@ impl Voronoi {
         let max_cell_width =
             (5. * (width.x * width.y * width.z) / generators.len() as f64).powf(1. / 2.);
         let mut space = Space::new(anchor, width, max_cell_width);
-        space.add_parts(generators);
+        let generators = space.add_parts(generators);
         let knn = space.knn(k);
 
         let mut cells = Vec::with_capacity(generators.len());
         let mut faces = Vec::with_capacity(generators.len());
         for (i, generator) in generators.iter().enumerate() {
             let mut convex_cell = ConvexCell::init(*generator, anchor, width, i);
-            let result = convex_cell.build(generators, &knn[i]);
+            let result = convex_cell.build(&generators, &knn[i]);
             if k + 1 < generators.len() {
                 result.expect("Security radius not reached! Run with larger number of neighbours!");
             }

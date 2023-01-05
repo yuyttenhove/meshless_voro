@@ -84,7 +84,7 @@ impl Space {
         }
     }
 
-    pub fn add_parts(&mut self, positions: &[DVec3]) {
+    pub fn add_parts(&mut self, positions: &[DVec3]) -> Vec<DVec3> {
         // Determine the cid of all positions and create parts
         let mut parts: Vec<Part> = positions
             .iter()
@@ -113,7 +113,7 @@ impl Space {
         // sort by cid
         parts.sort_by(|p_a, p_b| p_a.cid().cmp(&p_b.cid()));
 
-        // add parts to space and set cell offsets and
+        // add parts to space and set cell offsets and counts
         let mut offset = 0;
         let mut count = 0;
         let mut prev_cid = parts[0].cid();
@@ -131,6 +131,8 @@ impl Space {
         self.cells[prev_cid].count = count;
 
         self.parts = parts;
+
+        self.parts.iter().map(|p| p.x()).collect()
     }
 
     pub fn knn(&self, k: usize) -> Vec<Vec<usize>> {
