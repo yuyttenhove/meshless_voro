@@ -47,34 +47,6 @@ fn perturbed_plane(anchor: DVec3, width: DVec3, count: usize, pert: f64) -> Vec<
     generators
 }
 
-fn generators_2d() -> Vec<DVec3> {
-    let anchor = DVec3::splat(1.);
-    let mut p_x = vec![];
-    let mut rng = thread_rng();
-    let distr = Uniform::new(0., 0.5);
-    for i in 0..4 {
-        for j in 0..4 {
-            let k = 0;
-            let cell_anchor = anchor
-                + DVec3 {
-                    x: i as f64 * 0.5,
-                    y: j as f64 * 0.5,
-                    z: k as f64 * 0.5,
-                };
-            for _ in 0..3 {
-                // Add 3 parts per cell
-                let rel_pos = DVec3 {
-                    x: rng.sample(distr),
-                    y: rng.sample(distr),
-                    z: 0.,
-                };
-                p_x.push(cell_anchor + rel_pos);
-            }
-        }
-    }
-    p_x
-}
-
 #[test]
 fn test_init_voronoi_cell() {
     let anchor = DVec3::splat(1.);
