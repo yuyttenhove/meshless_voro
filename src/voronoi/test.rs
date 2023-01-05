@@ -37,7 +37,7 @@ fn perturbed_plane(anchor: DVec3, width: DVec3, count: usize, pert: f64) -> Vec<
             DVec3 {
                 x: i as f64 + 0.5 + pert * rng.sample(distr),
                 y: j as f64 + 0.5 + pert * rng.sample(distr),
-                z: 0.5,
+                z: 0.5 * count as f64,
             } * width
                 / count as f64
                 + anchor,
@@ -235,14 +235,15 @@ fn test_2_d() {
     let pert = 0.5;
     let anchor = DVec3::ZERO;
     let width = DVec3::splat(1.);
-    let generators = perturbed_grid(anchor, width, 5, pert);
-    let voronoi = Voronoi::build(&generators, anchor, width, 40);
+    let generators = perturbed_plane(anchor, width, 5, pert);
+    let voronoi = Voronoi::build(&generators, anchor, width, 24);
     let mut file = File::create("faces.txt").unwrap();
     for face in &voronoi.faces {
+        let n = voronoi.cells[face.right].loc - voronoi.cells[face.left].loc;
         writeln!(
             file,
-            "{}\t({}, {}, {})",
-            face.area, face.midpoint.x, face.midpoint.y, face.midpoint.z
+            "{}\t({}, {}, {})\t({}, {}, {})",
+            face.area, face.midpoint.x, face.midpoint.y, face.midpoint.z, n.x, n.y, n.z,
         )
         .unwrap();
     }
