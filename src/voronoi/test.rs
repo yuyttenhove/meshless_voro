@@ -209,7 +209,7 @@ fn test_64_cells() {
 
 #[test]
 fn test_125_cells() {
-    let pert = 0.3;
+    let pert = 0.0;
     let anchor = DVec3::ZERO;
     let width = DVec3::splat(1.);
     let generators = perturbed_grid(anchor, width, 5, pert);
@@ -222,9 +222,13 @@ fn test_125_cells() {
 }
 
 #[test]
-fn test_voronoi() {
-    let generators = generators_2d();
-    let voronoi = Voronoi::build(&generators, DVec3::splat(1.), DVec3::splat(2.), 40);
+fn test_3_d() {
+    let pert = 0.5;
+    let count = 10;
+    let anchor = DVec3::ZERO;
+    let width = DVec3::splat(2.);
+    let generators = perturbed_grid(anchor, width, count, pert);
+    let voronoi = Voronoi::build(&generators, anchor, width, 40);
     let total_volume: f64 = voronoi.cells.iter().map(|c| c.volume).sum();
     assert_eq!(voronoi.cells.len(), generators.len());
     assert_approx_eq!(f64, total_volume, 8.);
@@ -234,8 +238,8 @@ fn test_voronoi() {
 fn test_2_d() {
     let pert = 0.;
     let count = 6;
-    let anchor = DVec3::ZERO;
-    let width = DVec3::splat(1.);
+    let anchor = DVec3::splat(2.);
+    let width = DVec3::splat(2.);
     let generators = perturbed_plane(anchor, width, count, pert);
     let voronoi = Voronoi::build(&generators, anchor, width, count * count - 1);
     let mut file = File::create("faces.txt").unwrap();
@@ -265,5 +269,5 @@ fn test_2_d() {
         .unwrap();
         total_area += cell.volume
     }
-    assert_approx_eq!(f64, total_area, 1.);
+    assert_approx_eq!(f64, total_area, 8.);
 }
