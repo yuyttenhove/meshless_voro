@@ -1,3 +1,5 @@
+use std::{fs::File, io::Write};
+
 use super::*;
 use float_cmp::assert_approx_eq;
 use rand::{distributions::Uniform, prelude::*};
@@ -15,7 +17,30 @@ fn perturbed_grid(anchor: DVec3, width: DVec3, count: usize, pert: f64) -> Vec<D
                 x: i as f64 + 0.5 + pert * rng.sample(distr),
                 y: j as f64 + 0.5 + pert * rng.sample(distr),
                 z: k as f64 + 0.5 + pert * rng.sample(distr),
-            } * width / count as f64 + anchor,
+            } * width
+                / count as f64
+                + anchor,
+        );
+    }
+
+    generators
+}
+
+fn perturbed_plane(anchor: DVec3, width: DVec3, count: usize, pert: f64) -> Vec<DVec3> {
+    let mut generators = vec![];
+    let mut rng = thread_rng();
+    let distr = Uniform::new(-0.5, 0.5);
+    for n in 0..count.pow(2) {
+        let i = n / count;
+        let j = n % count;
+        generators.push(
+            DVec3 {
+                x: i as f64 + 0.5 + pert * rng.sample(distr),
+                y: j as f64 + 0.5 + pert * rng.sample(distr),
+                z: 0.5,
+            } * width
+                / count as f64
+                + anchor,
         );
     }
 
@@ -203,4 +228,37 @@ fn test_voronoi() {
     let total_volume: f64 = voronoi.cells.iter().map(|c| c.volume).sum();
     assert_eq!(voronoi.cells.len(), generators.len());
     assert_approx_eq!(f64, total_volume, 8.);
+}
+
+#[test]
+fn test_2_d() {
+    let pert = 0.5;
+    let anchor = DVec3::ZERO;
+    let width = DVec3::splat(1.);
+    let generators = perturbed_grid(anchor, width, 5, pert);
+    let voronoi = Voronoi::build(&generators, anchor, width, 40);
+    let mut file = File::create("faces.txt").unwrap();
+    for face in &voronoi.faces {
+        writeln!(
+            file,
+            "{}\t({}, {}, {})",
+            face.area, face.midpoint.x, face.midpoint.y, face.midpoint.z
+        )
+        .unwrap();
+    }
+    let mut file = File::create("cells.txt").unwrap();
+    for cell in &voronoi.cells {
+        writeln!(
+            file,
+            "{}\t({}, {}, {})\t({}, {}, {})",
+            cell.volume,
+            cell.loc.x,
+            cell.loc.y,
+            cell.loc.z,
+            cell.centroid.x,
+            cell.centroid.y,
+            cell.centroid.z
+        )
+        .unwrap()
+    }
 }
