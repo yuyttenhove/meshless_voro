@@ -408,7 +408,7 @@ impl Voronoi {
         let max_cell_width =
             (5. * (width.x * width.y * width.z) / generators.len() as f64).powf(1. / 2.);
         let mut space = Space::new(anchor, width, max_cell_width);
-        let generators = space.add_parts(generators);
+        space.add_parts(generators);
         let knn = space.knn(k);
 
         let mut cells = Vec::with_capacity(generators.len());

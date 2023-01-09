@@ -84,11 +84,11 @@ impl Space {
         }
     }
 
-    pub fn add_parts(&mut self, positions: &[DVec3]) -> Vec<DVec3> {
+    pub fn add_parts(&mut self, positions: &[DVec3]) {
         // Determine the cid of all positions and create parts
         let mut parts: Vec<Part> = positions
-            .iter()
-            .map(|p_x| {
+            .iter().enumerate()
+            .map(|(pid, p_x)| {
                 let rel_pos = *p_x - self.anchor;
                 assert!(
                     rel_pos.x >= 0.
@@ -106,7 +106,7 @@ impl Space {
                 let cid = self
                     .get_cid(i, j, k)
                     .expect("Index out of bounds during construction!");
-                Part::new(*p_x, cid)
+                Part::new(*p_x, cid, pid)
             })
             .collect();
 
@@ -131,8 +131,6 @@ impl Space {
         self.cells[prev_cid].count = count;
 
         self.parts = parts;
-
-        self.parts.iter().map(|p| p.x()).collect()
     }
 
     pub fn knn(&self, k: usize) -> Vec<Vec<usize>> {
@@ -160,11 +158,12 @@ impl Space {
         // Check that this is possible
         assert!(k < self.count());
 
+        // Initialize nearest-neighbour matrix
+        let mut nn: Vec<Vec<usize>> = (0..self.count()).map(|_| vec![0; k]).collect();
+
         // loop over parts and find their nearest neighbours
-        let mut nn = Vec::with_capacity(self.count());
-        for (p_idx, part) in self.parts.iter().enumerate() {
+        for part in self.parts.iter() {
             let mut h = BinaryHeap::<HeapEntry>::new();
-            let mut this_nn = vec![0; k];
             let cid = part.cid();
             let dist_to_face = self.cells[cid].min_distance_to_face(part.x());
 
@@ -191,16 +190,16 @@ impl Space {
                     let ngb_parts =
                         &self.parts[ngb_cell.offset..(ngb_cell.offset + ngb_cell.count)];
 
-                    for (i, ngb_part) in ngb_parts.iter().enumerate() {
+                    for ngb_part in ngb_parts.iter() {
                         // Skip the part itself
-                        if ngb_cid == cid && p_idx == ngb_cell.offset + i {
+                        if part.id() == ngb_part.id() {
                             continue;
                         }
 
                         let d_2 = part.distance_squared(ngb_part);
                         if h.len() < k {
                             h.push(HeapEntry {
-                                idx: ngb_cell.offset + i,
+                                idx: ngb_part.id(),
                                 d_2,
                             });
                         } else {
@@ -208,7 +207,7 @@ impl Space {
                             if d_2 < max_d_2 {
                                 h.pop();
                                 h.push(HeapEntry {
-                                    idx: ngb_cell.offset + i,
+                                    idx: ngb_part.id(),
                                     d_2,
                                 });
                             }
@@ -232,9 +231,8 @@ impl Space {
                 let entry = h
                     .pop()
                     .expect("We should be able to pop k entries from a Heap of length k");
-                this_nn[i] = entry.idx;
+                nn[part.id()][i] = entry.idx;
             }
-            nn.push(this_nn);
         }
 
         nn
