@@ -51,15 +51,15 @@ pub fn signed_volume_tet(v0: DVec3, v1: DVec3, v2: DVec3, v3: DVec3) -> f64 {
     DMat3::from_cols(v01, v02, v03).determinant() / 6.
 }
 
-/// Calculates the signed area of the triangle `v0`, `v1`, `v2` as seen from the position of `t`.
-pub fn signed_area_tri(v0: DVec3, v1: DVec3, v2: DVec3, t: DVec3) -> f64 {
+/// Calculates the signed area of the ground face `v0`, `v1`, `v2` of the tetrahedron with top `t` and given `volume`.
+pub fn signed_area_tri(v0: DVec3, v1: DVec3, v2: DVec3, t: DVec3, volume: f64) -> f64 {
     let n = match (v1 - v0).cross(v2 - v0).try_normalize() {
         Some(n) => n,
         None => return 0.,
     };
     let height = (t - v0).dot(n).abs();
 
-    3. * signed_volume_tet(v0, v1, v2, t) / height
+    3. * volume / height
 }
 
 
@@ -110,14 +110,14 @@ mod test {
         let v2 = DVec3::Y;
         let t = DVec3::Z;
 
-        let area = signed_area_tri(v0, v1, v2, t);
+        let area = signed_area_tri(v0, v1, v2, t, signed_volume_tet(v0, v1, v2, t));
         assert_eq!(area, 0.5);
 
-        let area2 = signed_area_tri(v0, v2, v1, t);
+        let area2 = signed_area_tri(v0, v2, v1, t, signed_volume_tet(v0, v2, v1, t));
         assert_eq!(area, -area2);
 
         let t = DVec3::Z + DVec3{ x: 10., y: 10., z: 0. };
-        let area3 = signed_area_tri(v0, v1, v2, t);
+        let area3 = signed_area_tri(v0, v1, v2, t, signed_volume_tet(v0, v1, v2, t));
         assert_eq!(area, area3)
     }
 }

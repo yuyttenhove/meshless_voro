@@ -317,7 +317,7 @@ impl VoronoiCell {
             // Project generator on vertex between planes
             let g_on_p012 = vertex.loc;
 
-            // Calculate signed volumes of tetrahedra TODO
+            // Calculate signed volumes of tetrahedra
             let v_001 = signed_volume_tet(g_on_p012, g_on_p01, g_on_p0, loc);
             let v_002 = signed_volume_tet(g_on_p012, g_on_p0, g_on_p02, loc);
             let v_101 = signed_volume_tet(g_on_p012, g_on_p1, g_on_p01, loc);
@@ -338,24 +338,24 @@ impl VoronoiCell {
             // Calculate the signed areas of the triangles on the faces and update their barycenters
             let frac_1_3 = 1. / 3.;
             face_0.as_mut().map(|f| {
-                let v_001 = signed_area_tri(g_on_p012, g_on_p01, g_on_p0, loc);
-                let v_002 = signed_area_tri(g_on_p012, g_on_p0, g_on_p02, loc);
+                let v_001 = signed_area_tri(g_on_p012, g_on_p01, g_on_p0, loc, v_001);
+                let v_002 = signed_area_tri(g_on_p012, g_on_p0, g_on_p02, loc, v_002);
                 f.area += v_001 + v_002;
                 f.midpoint += frac_1_3
                     * (v_001 * (g_on_p0 + g_on_p01 + g_on_p012)
                         + v_002 * (g_on_p0 + g_on_p02 + g_on_p012));
             });
             face_1.as_mut().map(|f| {
-                let v_101 = signed_area_tri(g_on_p012, g_on_p1, g_on_p01, loc);
-                let v_112 = signed_area_tri(g_on_p012, g_on_p12, g_on_p1, loc);
+                let v_101 = signed_area_tri(g_on_p012, g_on_p1, g_on_p01, loc, v_101);
+                let v_112 = signed_area_tri(g_on_p012, g_on_p12, g_on_p1, loc, v_112);
                 f.area += v_101 + v_112;
                 f.midpoint += frac_1_3
                     * (v_101 * (g_on_p1 + g_on_p01 + g_on_p012)
                         + v_112 * (g_on_p1 + g_on_p12 + g_on_p012));
             });
             face_2.as_mut().map(|f| {
-                let v_202 = signed_area_tri(g_on_p012, g_on_p02, g_on_p2, loc);
-                let v_212 = signed_area_tri(g_on_p012, g_on_p2, g_on_p12, loc);
+                let v_202 = signed_area_tri(g_on_p012, g_on_p02, g_on_p2, loc, v_202);
+                let v_212 = signed_area_tri(g_on_p012, g_on_p2, g_on_p12, loc, v_212);
                 f.area += v_202 + v_212;
                 f.midpoint += frac_1_3
                     * (v_202 * (g_on_p2 + g_on_p02 + g_on_p012)

@@ -3,3 +3,6 @@
 
 *.txt
 *.png
+*.svg
+*.old
+*.data
