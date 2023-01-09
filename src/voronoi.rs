@@ -37,10 +37,13 @@ impl HalfSpace {
         vertex + (self.p - vertex).project_onto(self.n)
     }
 
-    /// Project the a vertex on the intersection of two planes, by first projecting it
-    /// on one plane and then project the result on the second plane.
+    /// Project the a vertex on the intersection of two planes.
     fn project_onto_intersection(&self, other: &Self, vertex: DVec3) -> DVec3 {
-        self.project_onto(other.project_onto(vertex))
+        // first create a plane through the point perpendicular to both planes
+        let p_perp = HalfSpace::new(self.n.cross(other.n), vertex, None);
+
+        // The projection is the intersection of the planes self, other and p_perp
+        intersect_planes(self, other, &p_perp)
     }
 }
 
@@ -48,6 +51,7 @@ impl HalfSpace {
 /// see: https://mathworld.wolfram.com/Plane-PlaneIntersection.html
 fn intersect_planes(p0: &HalfSpace, p1: &HalfSpace, p2: &HalfSpace) -> DVec3 {
     let det = DMat3::from_cols(p0.n, p1.n, p2.n).determinant();
+    assert!(det != 0., "Degenerate 3-plane intersection!");
 
     (p0.p.dot(p0.n) * p1.n.cross(p2.n)
         + p1.p.dot(p1.n) * p2.n.cross(p0.n)

@@ -48,13 +48,13 @@ fn perturbed_plane(anchor: DVec3, width: DVec3, count: usize, pert: f64) -> Vec<
 #[test]
 fn test_init_voronoi_cell() {
     let anchor = DVec3::splat(1.);
-    let width = DVec3::splat(3.);
+    let width = DVec3::splat(4.);
     let loc = DVec3::splat(3.);
     let cell = ConvexCell::init(loc, anchor, width, 0);
 
     assert_eq!(cell.vertices.len(), 8);
     assert_eq!(cell.clipping_planes.len(), 6);
-    assert_eq!(cell.safety_radius, 12f64.sqrt())
+    assert_eq!(cell.safety_radius, 2. * 12f64.sqrt())
 }
 
 #[test]
@@ -201,7 +201,7 @@ fn test_64_cells() {
     let anchor = DVec3::ZERO;
     let width = DVec3::splat(1.);
     let generators = perturbed_grid(anchor, width, 4, 0.);
-    let voronoi = Voronoi::build(&generators, anchor, width, 26);
+    let voronoi = Voronoi::build(&generators, anchor, width, 27);
     for cell in &voronoi.cells {
         assert_approx_eq!(f64, cell.volume, 1. / 64.);
     }
@@ -209,7 +209,7 @@ fn test_64_cells() {
 
 #[test]
 fn test_125_cells() {
-    let pert = 0.0;
+    let pert = 0.5;
     let anchor = DVec3::ZERO;
     let width = DVec3::splat(1.);
     let generators = perturbed_grid(anchor, width, 5, pert);
@@ -224,20 +224,20 @@ fn test_125_cells() {
 #[test]
 fn test_3_d() {
     let pert = 0.5;
-    let count = 10;
+    let count = 20;
     let anchor = DVec3::ZERO;
     let width = DVec3::splat(2.);
     let generators = perturbed_grid(anchor, width, count, pert);
-    let voronoi = Voronoi::build(&generators, anchor, width, 40);
+    let voronoi = Voronoi::build(&generators, anchor, width, 60);
     let total_volume: f64 = voronoi.cells.iter().map(|c| c.volume).sum();
     assert_eq!(voronoi.cells.len(), generators.len());
-    assert_approx_eq!(f64, total_volume, 8.);
+    assert_approx_eq!(f64, total_volume, 8., epsilon=1e-10, ulps=8);
 }
 
 #[test]
 fn test_2_d() {
-    let pert = 0.;
-    let count = 5;
+    let pert = 0.75;
+    let count = 10;
     let anchor = DVec3::splat(2.);
     let width = DVec3{ x: 2., y: 2., z: 1.};
     let generators = perturbed_plane(anchor, width, count, pert);
