@@ -1,3 +1,5 @@
+use std::{fs::File, io::Write};
+
 use glam::{DMat3, DVec3};
 
 use crate::{
@@ -468,5 +470,33 @@ impl Voronoi {
 
     pub fn faces(&self) -> &[VoronoiFace] {
         self.faces.as_ref()
+    }
+
+    pub fn save(&self) {
+        let mut file = File::create("faces.txt").unwrap();
+        for face in &self.faces {
+            let n = self.cells[face.right].loc - self.cells[face.left].loc;
+            writeln!(
+                file,
+                "{}\t({}, {}, {})\t({}, {}, {})",
+                face.area, face.midpoint.x, face.midpoint.y, face.midpoint.z, n.x, n.y, n.z,
+            )
+            .unwrap();
+        }
+        let mut file = File::create("cells.txt").unwrap();
+        for cell in &self.cells {
+            writeln!(
+                file,
+                "{}\t({}, {}, {})\t({}, {}, {})",
+                cell.volume,
+                cell.loc.x,
+                cell.loc.y,
+                cell.loc.z,
+                cell.centroid.x,
+                cell.centroid.y,
+                cell.centroid.z
+            )
+            .unwrap();
+        }
     }
 }

@@ -1,5 +1,3 @@
-use std::{fs::File, io::Write};
-
 use super::*;
 use float_cmp::assert_approx_eq;
 use rand::{distributions::Uniform, prelude::*};
@@ -214,32 +212,7 @@ fn test_2_d() {
     let width = DVec3::splat(2.);
     let generators = perturbed_plane(anchor, width, count, pert);
     let voronoi = Voronoi::build(&generators, anchor, width, count * count - 1);
-    let mut file = File::create("faces.txt").unwrap();
-    for face in &voronoi.faces {
-        let n = voronoi.cells[face.right].loc - voronoi.cells[face.left].loc;
-        writeln!(
-            file,
-            "{}\t({}, {}, {})\t({}, {}, {})",
-            face.area, face.midpoint.x, face.midpoint.y, face.midpoint.z, n.x, n.y, n.z,
-        )
-        .unwrap();
-    }
-    let mut file = File::create("cells.txt").unwrap();
-    let mut total_area = 0.;
-    for cell in &voronoi.cells {
-        writeln!(
-            file,
-            "{}\t({}, {}, {})\t({}, {}, {})",
-            cell.volume,
-            cell.loc.x,
-            cell.loc.y,
-            cell.loc.z,
-            cell.centroid.x,
-            cell.centroid.y,
-            cell.centroid.z
-        )
-        .unwrap();
-        total_area += cell.volume
-    }
-    assert_approx_eq!(f64, total_area, 8.);
+    voronoi.save();
+    
+    assert_approx_eq!(f64, voronoi.cells.iter().map(|c| c.volume).sum(), 8.);
 }
