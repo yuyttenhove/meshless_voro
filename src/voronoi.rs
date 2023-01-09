@@ -198,7 +198,7 @@ impl ConvexCell {
         for vertex in self.vertices.iter() {
             max_dist_2 = max_dist_2.max(self.loc.distance_squared(vertex.loc));
         }
-        self.safety_radius = max_dist_2.sqrt();
+        self.safety_radius = 2. * max_dist_2.sqrt();
     }
 }
 
