@@ -32,12 +32,14 @@ def read_faces(fname: Path) -> np.ndarray:
 
 def plot(faces: np.ndarray):
     lines = LineCollection(faces, color="r")
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(6, 6))
     ax.add_collection(lines)
     ax.set_aspect("equal")
+    ax.set_xlim(min([f[:, 0].min() for f in faces]), max([f[:, 0].max() for f in faces]))
+    ax.set_ylim(min([f[:, 1].min() for f in faces]), max([f[:, 1].max() for f in faces]))
     ax.axis("off")
     fig.tight_layout()
-    fig.savefig("test.png")
+    fig.savefig("test.png", dpi=300)
 
 
 def main():

@@ -105,6 +105,36 @@ fn test_two_cells() {
 }
 
 #[test]
+fn test_4_cells() {
+    let generators = vec![
+        DVec3 {
+            x: 0.2,
+            y: 0.3,
+            z: 0.5,
+        },
+        DVec3 {
+            x: 0.8,
+            y: 0.2,
+            z: 0.5,
+        },
+        DVec3 {
+            x: 0.3,
+            y: 0.8,
+            z: 0.5,
+        },
+        DVec3 {
+            x: 0.7,
+            y: 0.7,
+            z: 0.5,
+        },
+    ];
+    let anchor = DVec3::ZERO;
+    let width = DVec3::splat(1.);
+    let voronoi = Voronoi::build(&generators, anchor, width, 3);
+    voronoi.save();
+}
+
+#[test]
 fn test_five_cells() {
     let delta = 0.1f64.sqrt();
     let generators = vec![
@@ -207,12 +237,12 @@ fn test_3_d() {
 #[test]
 fn test_2_d() {
     let pert = 0.;
-    let count = 6;
+    let count = 5;
     let anchor = DVec3::splat(2.);
-    let width = DVec3::splat(2.);
+    let width = DVec3{ x: 2., y: 2., z: 1.};
     let generators = perturbed_plane(anchor, width, count, pert);
     let voronoi = Voronoi::build(&generators, anchor, width, count * count - 1);
     voronoi.save();
     
-    assert_approx_eq!(f64, voronoi.cells.iter().map(|c| c.volume).sum(), 8.);
+    assert_approx_eq!(f64, voronoi.cells.iter().map(|c| c.volume).sum(), 4.);
 }
