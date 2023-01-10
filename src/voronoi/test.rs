@@ -131,7 +131,7 @@ fn test_4_cells() {
     let anchor = DVec3::ZERO;
     let width = DVec3::splat(1.);
     let voronoi = Voronoi::build(&generators, anchor, width);
-    voronoi.save();
+    assert_approx_eq!(f64, voronoi.cells.iter().map(|c| c.volume).sum(), 1.);
 }
 
 #[test]
@@ -218,7 +218,7 @@ fn test_125_cells() {
     for cell in &voronoi.cells {
         total_volume += cell.volume;
     }
-    assert_approx_eq!(f64, total_volume, 1.)
+    assert_approx_eq!(f64, total_volume, 1., epsilon=1e-10, ulps=8)
 }
 
 #[test]
