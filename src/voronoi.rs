@@ -1,9 +1,7 @@
 use std::{fs::File, io::Write};
 
 use glam::{DMat3, DVec3};
-use rayon::prelude::{
-    IndexedParallelIterator, IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator,
-};
+use rayon::prelude::*;
 
 use crate::{
     rtree_nn::{build_rtree, nn_iter},
@@ -502,6 +500,10 @@ impl Voronoi {
 
     pub fn faces(&self) -> &[VoronoiFace] {
         self.faces.as_ref()
+    }
+
+    pub fn cell_face_connections(&self) -> &[usize] {
+        self.cell_face_connections.as_ref()
     }
 
     pub fn save(&self) {
