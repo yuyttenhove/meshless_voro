@@ -1,10 +1,13 @@
 use std::{fs::File, io::Write};
 
 use glam::{DMat3, DVec3};
+use rayon::prelude::{
+    IndexedParallelIterator, IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator,
+};
 
 use crate::{
+    rtree_nn::{build_rtree, nn_iter},
     simple_cycle::SimpleCycle,
-    space::Space,
     util::{signed_area_tri, signed_volume_tet, GetMutMultiple},
 };
 
@@ -114,21 +117,32 @@ impl ConvexCell {
     }
 
     /// Build the voronoi cell by repeatedly intersecting it with the appropriate half spaces
-    fn build(&mut self, generators: &[DVec3], nearest_neighbours: &[usize]) -> Result<(), ()> {
-        for &idx in nearest_neighbours.iter() {
+    fn build(
+        &mut self,
+        generators: &[Generator],
+        mut nearest_neighbours: Box<dyn Iterator<Item = usize> + '_>,
+    ) {
+        // skip the first nearest neighbour (will be this cell)
+        assert_eq!(
+            nearest_neighbours
+                .next()
+                .expect("Nearest neighbours cannot be empty!"),
+            self.idx,
+            "First nearest neighbour should be the generator itself!"
+        );
+        // now loop over the nearest neighbours and clip this cell until the safety radius is reached
+        for idx in nearest_neighbours {
             let generator = generators[idx];
-            let dx = self.loc - generator;
+            let dx = self.loc - generator.loc;
             let dist = dx.length();
             assert!(dist.is_finite() && dist > 0.0, "Degenerate point set!");
             if self.safety_radius < dist {
-                return Ok(());
+                return;
             }
             let n = dx / dist;
-            let p = 0.5 * (self.loc + generator);
+            let p = 0.5 * (self.loc + generator.loc);
             self.clip_by_plane(HalfSpace::new(n, p, Some(idx)));
         }
-
-        Err(())
     }
 
     fn clip_by_plane(&mut self, p: HalfSpace) {
@@ -206,6 +220,22 @@ impl ConvexCell {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct Generator {
+    loc: DVec3,
+    id: usize,
+}
+
+impl Generator {
+    pub fn id(&self) -> usize {
+        self.id
+    }
+
+    pub fn loc(&self) -> DVec3 {
+        self.loc
+    }
+}
+
 pub struct VoronoiFace {
     left: usize,
     right: usize,
@@ -244,6 +274,7 @@ impl VoronoiFace {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct VoronoiCell {
     loc: DVec3,
     centroid: DVec3,
@@ -263,7 +294,7 @@ impl VoronoiCell {
         }
     }
 
-    fn from_convex_cell(convex_cell: &ConvexCell) -> (VoronoiCell, Vec<VoronoiFace>) {
+    fn from_convex_cell(convex_cell: &ConvexCell, faces: &mut Vec<VoronoiFace>) -> Self {
         let idx = convex_cell.idx;
         let loc = convex_cell.loc;
         let mut centroid = DVec3::ZERO;
@@ -364,16 +395,14 @@ impl VoronoiCell {
         }
 
         // Filter out uninitialized faces and finalize the rest
-        let faces = maybe_faces
-            .into_iter()
-            .filter_map(|f| {
-                f.map(|mut v| {
-                    v.finalize();
-                    v
-                })
-            })
-            .collect();
-        (VoronoiCell::init(loc, centroid / volume, volume), faces)
+        for maybe_face in maybe_faces {
+            if let Some(mut face) = maybe_face {
+                face.finalize();
+                faces.push(face);
+            }
+        }
+
+        VoronoiCell::init(loc, centroid / volume, volume)
     }
 
     pub fn loc(&self) -> DVec3 {
@@ -408,25 +437,24 @@ pub struct Voronoi {
 
 impl Voronoi {
     /// Construct a Voronoi tesselation using the VoroGPU algorithm with `k` nearest neighbours.
-    pub fn build(generators: &[DVec3], anchor: DVec3, width: DVec3, k: usize) -> Self {
-        let max_cell_width =
-            (5. * (width.x * width.y * width.z) / generators.len() as f64).powf(1. / 2.);
-        let mut space = Space::new(anchor, width, max_cell_width);
-        space.add_parts(generators);
-        let knn = space.knn(k);
+    pub fn build(generators: &[DVec3], anchor: DVec3, width: DVec3) -> Self {
+        let generators: Vec<Generator> = generators
+            .iter()
+            .enumerate()
+            .map(|(id, &loc)| Generator { loc, id })
+            .collect();
+        let rtree = build_rtree(&generators);
 
-        let mut cells = Vec::with_capacity(generators.len());
-        let mut faces = Vec::with_capacity(generators.len());
-        for (i, generator) in generators.iter().enumerate() {
-            let mut convex_cell = ConvexCell::init(*generator, anchor, width, i);
-            let result = convex_cell.build(&generators, &knn[i]);
-            if k + 1 < generators.len() {
-                result.expect("Security radius not reached! Run with larger number of neighbours!");
-            }
-            let (this_cell, this_faces) = VoronoiCell::from_convex_cell(&convex_cell);
-            cells.push(this_cell);
-            faces.push(this_faces);
-        }
+        let mut faces: Vec<Vec<VoronoiFace>> = generators.iter().map(|_| vec![]).collect();
+        let cells = generators
+            .par_iter()
+            .zip(faces.par_iter_mut())
+            .map(|(generator, faces)| {
+                let mut convex_cell = ConvexCell::init(generator.loc, anchor, width, generator.id);
+                convex_cell.build(&generators, nn_iter(&rtree, generator.loc));
+                VoronoiCell::from_convex_cell(&convex_cell, faces)
+            })
+            .collect();
 
         Voronoi {
             anchor,
