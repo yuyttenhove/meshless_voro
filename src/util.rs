@@ -58,6 +58,9 @@ pub fn signed_area_tri(v0: DVec3, v1: DVec3, v2: DVec3, t: DVec3, volume: f64) -
         None => return 0.,
     };
     let height = (t - v0).dot(n).abs();
+    if height == 0. {
+        return 0.;
+    }
 
     3. * volume / height
 }
