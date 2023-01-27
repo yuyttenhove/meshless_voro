@@ -319,36 +319,24 @@ impl VoronoiCell {
             let plane_2 = &convex_cell.clipping_planes[face_idx_2];
             let (face_0, face_1, face_2) =
                 maybe_faces.get_3_mut(face_idx_0, face_idx_1, face_idx_2);
-            // If the faces are None, and we want to create a face (idx < right_idx) initialize it now.
+            // If the faces are None and we want to create a face, initialize it now.
             match plane_0.right_idx {
-                Some(right_idx) if right_idx > idx => {
-                    face_0.get_or_insert(VoronoiFace::init(idx, Some(right_idx), -plane_0.n));
+                Some(right_idx) if right_idx <= idx => (), // Don't construct faces twice
+                _ => {
+                    face_0.get_or_insert(VoronoiFace::init(idx, plane_0.right_idx, -plane_0.n));
                 }
-                None => {
-                    // Boundary face
-                    face_0.get_or_insert(VoronoiFace::init(idx, None, -plane_0.n));
-                }
-                _ => (), // Don't construct boundary faces,
             }
             match plane_1.right_idx {
-                Some(right_idx) if right_idx > idx => {
-                    face_1.get_or_insert(VoronoiFace::init(idx, Some(right_idx), -plane_1.n));
+                Some(right_idx) if right_idx <= idx => (), // Don't construct faces twice
+                _ => {
+                    face_1.get_or_insert(VoronoiFace::init(idx, plane_1.right_idx, -plane_1.n));
                 }
-                None => {
-                    // Boundary face
-                    face_1.get_or_insert(VoronoiFace::init(idx, None, -plane_1.n));
-                }
-                _ => (), // Don't construct boundary faces,
             }
             match plane_2.right_idx {
-                Some(right_idx) if right_idx > idx => {
-                    face_2.get_or_insert(VoronoiFace::init(idx, Some(right_idx), -plane_2.n));
+                Some(right_idx) if right_idx <= idx => (), // Don't construct faces twice
+                _ => {
+                    face_2.get_or_insert(VoronoiFace::init(idx, plane_2.right_idx, -plane_2.n));
                 }
-                None => {
-                    // Boundary face
-                    face_2.get_or_insert(VoronoiFace::init(idx, None, -plane_2.n));
-                }
-                _ => (), // Don't construct faces twice,
             }
 
             // Project generator on planes
