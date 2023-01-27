@@ -502,6 +502,10 @@ impl Voronoi {
         self.faces.as_ref()
     }
 
+    pub fn into_faces(self) -> Vec<VoronoiFace> {
+        self.faces
+    }
+
     pub fn cell_face_connections(&self) -> &[usize] {
         self.cell_face_connections.as_ref()
     }

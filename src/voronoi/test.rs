@@ -237,7 +237,7 @@ fn test_2_d() {
 #[test]
 fn test_3_d() {
     let pert = 0.5;
-    let count = 32;
+    let count = 128;
     let anchor = DVec3::ZERO;
     let width = DVec3::splat(2.);
     let generators = perturbed_grid(anchor, width, count, pert);
