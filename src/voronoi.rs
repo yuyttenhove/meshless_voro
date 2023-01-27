@@ -239,15 +239,17 @@ pub struct VoronoiFace {
     right: usize,
     area: f64,
     midpoint: DVec3,
+    normal: DVec3,
 }
 
 impl VoronoiFace {
-    fn init(left: usize, right: usize) -> Self {
+    fn init(left: usize, right: usize, normal: DVec3) -> Self {
         VoronoiFace {
             left,
             right,
             area: 0.,
             midpoint: DVec3::ZERO,
+            normal,
         }
     }
 
@@ -269,6 +271,10 @@ impl VoronoiFace {
 
     pub fn midpoint(&self) -> DVec3 {
         self.midpoint
+    }
+
+    pub fn normal(&self) ->DVec3 {
+        self.normal    
     }
 }
 
@@ -316,19 +322,19 @@ impl VoronoiCell {
             // If the faces are None, and we want to create a face (idx < right_idx) initialize it now.
             match plane_0.right_idx {
                 Some(right_idx) if right_idx > idx => {
-                    face_0.get_or_insert(VoronoiFace::init(idx, right_idx));
+                    face_0.get_or_insert(VoronoiFace::init(idx, right_idx, plane_0.n));
                 }
                 _ => (), // Don't construct boundary faces,
             }
             match plane_1.right_idx {
                 Some(right_idx) if right_idx > idx => {
-                    face_1.get_or_insert(VoronoiFace::init(idx, right_idx));
+                    face_1.get_or_insert(VoronoiFace::init(idx, right_idx, plane_1.n));
                 }
                 _ => (), // Don't construct boundary faces,
             }
             match plane_2.right_idx {
                 Some(right_idx) if right_idx > idx => {
-                    face_2.get_or_insert(VoronoiFace::init(idx, right_idx));
+                    face_2.get_or_insert(VoronoiFace::init(idx, right_idx, plane_2.n));
                 }
                 _ => (), // Don't construct boundary faces,
             }
