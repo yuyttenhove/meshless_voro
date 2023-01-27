@@ -322,19 +322,19 @@ impl VoronoiCell {
             // If the faces are None, and we want to create a face (idx < right_idx) initialize it now.
             match plane_0.right_idx {
                 Some(right_idx) if right_idx > idx => {
-                    face_0.get_or_insert(VoronoiFace::init(idx, right_idx, plane_0.n));
+                    face_0.get_or_insert(VoronoiFace::init(idx, right_idx, -plane_0.n));
                 }
                 _ => (), // Don't construct boundary faces,
             }
             match plane_1.right_idx {
                 Some(right_idx) if right_idx > idx => {
-                    face_1.get_or_insert(VoronoiFace::init(idx, right_idx, plane_1.n));
+                    face_1.get_or_insert(VoronoiFace::init(idx, right_idx, -plane_1.n));
                 }
                 _ => (), // Don't construct boundary faces,
             }
             match plane_2.right_idx {
                 Some(right_idx) if right_idx > idx => {
-                    face_2.get_or_insert(VoronoiFace::init(idx, right_idx, plane_2.n));
+                    face_2.get_or_insert(VoronoiFace::init(idx, right_idx, -plane_2.n));
                 }
                 _ => (), // Don't construct boundary faces,
             }
