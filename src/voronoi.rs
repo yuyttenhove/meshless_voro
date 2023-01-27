@@ -254,11 +254,8 @@ impl VoronoiFace {
     }
 
     fn finalize(&mut self) {
-        if self.area != 0. {
-            self.midpoint /= self.area;
-        } else {
-            self.midpoint = DVec3::ZERO;
-        }
+        let area_inv = if self.area != 0. {1. / self.area } else { 0. };
+        self.midpoint *= area_inv;
     }
 
     pub fn left(&self) -> usize {
