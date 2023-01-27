@@ -1,4 +1,4 @@
-use std::{fs::File, io::Write};
+use std::{fs::File, io::Write, cell};
 
 use glam::{DMat3, DVec3};
 use rayon::prelude::*;
@@ -236,14 +236,14 @@ impl Generator {
 
 pub struct VoronoiFace {
     left: usize,
-    right: usize,
+    right: Option<usize>,
     area: f64,
     midpoint: DVec3,
     normal: DVec3,
 }
 
 impl VoronoiFace {
-    fn init(left: usize, right: usize, normal: DVec3) -> Self {
+    fn init(left: usize, right: Option<usize>, normal: DVec3) -> Self {
         VoronoiFace {
             left,
             right,
@@ -261,7 +261,7 @@ impl VoronoiFace {
         self.left
     }
 
-    pub fn right(&self) -> usize {
+    pub fn right(&self) -> Option<usize> {
         self.right
     }
 
@@ -322,21 +322,33 @@ impl VoronoiCell {
             // If the faces are None, and we want to create a face (idx < right_idx) initialize it now.
             match plane_0.right_idx {
                 Some(right_idx) if right_idx > idx => {
-                    face_0.get_or_insert(VoronoiFace::init(idx, right_idx, -plane_0.n));
+                    face_0.get_or_insert(VoronoiFace::init(idx, Some(right_idx), -plane_0.n));
+                }
+                None => {
+                    // Boundary face
+                    face_0.get_or_insert(VoronoiFace::init(idx, None, -plane_0.n));
                 }
                 _ => (), // Don't construct boundary faces,
             }
             match plane_1.right_idx {
                 Some(right_idx) if right_idx > idx => {
-                    face_1.get_or_insert(VoronoiFace::init(idx, right_idx, -plane_1.n));
+                    face_1.get_or_insert(VoronoiFace::init(idx, Some(right_idx), -plane_1.n));
+                }
+                None => {
+                    // Boundary face
+                    face_1.get_or_insert(VoronoiFace::init(idx, None, -plane_1.n));
                 }
                 _ => (), // Don't construct boundary faces,
             }
             match plane_2.right_idx {
                 Some(right_idx) if right_idx > idx => {
-                    face_2.get_or_insert(VoronoiFace::init(idx, right_idx, -plane_2.n));
+                    face_2.get_or_insert(VoronoiFace::init(idx, Some(right_idx), -plane_2.n));
                 }
-                _ => (), // Don't construct boundary faces,
+                None => {
+                    // Boundary face
+                    face_2.get_or_insert(VoronoiFace::init(idx, None, -plane_2.n));
+                }
+                _ => (), // Don't construct faces twice,
             }
 
             // Project generator on planes
@@ -477,7 +489,9 @@ impl Voronoi {
 
         for (i, face) in self.faces.iter().enumerate() {
             cell_face_connections[face.left].push(i);
-            cell_face_connections[face.right].push(i);
+            if let Some(right_idx) = face.right {
+                cell_face_connections[right_idx].push(i);
+            }
         }
 
         let mut count_total = 0;
@@ -519,7 +533,10 @@ impl Voronoi {
     pub fn save(&self) {
         let mut file = File::create("faces.txt").unwrap();
         for face in &self.faces {
-            let n = self.cells[face.right].loc - self.cells[face.left].loc;
+            let n = match face.right {
+                Some(right_idx) => self.cells[right_idx].loc - self.cells[face.left].loc,
+                None => (face.midpoint - self.cells[face.left].loc).project_onto(face.normal),
+            };
             writeln!(
                 file,
                 "{}\t({}, {}, {})\t({}, {}, {})",
