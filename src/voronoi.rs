@@ -84,7 +84,13 @@ struct ConvexCell {
 
 impl ConvexCell {
     /// Initialize each voronoi cell as the bounding box of the simulation volume.
-    fn init(loc: DVec3, anchor: DVec3, width: DVec3, idx: usize) -> Self {
+    fn init(
+        loc: DVec3,
+        anchor: DVec3,
+        width: DVec3,
+        idx: usize,
+        dimensionality: Dimensionality,
+    ) -> Self {
         let clipping_planes = vec![
             HalfSpace::new(DVec3::X, anchor, None),
             HalfSpace::new(DVec3::NEG_X, anchor + width, None),
@@ -110,7 +116,7 @@ impl ConvexCell {
             safety_radius: 0.,
             idx,
         };
-        cell.update_safety_radius();
+        cell.update_safety_radius(dimensionality);
         cell
     }
 
@@ -119,6 +125,7 @@ impl ConvexCell {
         &mut self,
         generators: &[Generator],
         mut nearest_neighbours: Box<dyn Iterator<Item = usize> + '_>,
+        dimensionality: Dimensionality,
     ) {
         // skip the first nearest neighbour (will be this cell)
         assert_eq!(
@@ -139,11 +146,11 @@ impl ConvexCell {
             }
             let n = dx / dist;
             let p = 0.5 * (self.loc + generator.loc);
-            self.clip_by_plane(HalfSpace::new(n, p, Some(idx)));
+            self.clip_by_plane(HalfSpace::new(n, p, Some(idx)), dimensionality);
         }
     }
 
-    fn clip_by_plane(&mut self, p: HalfSpace) {
+    fn clip_by_plane(&mut self, p: HalfSpace, dimensionality: Dimensionality) {
         // loop over vertices and remove the ones clipped by p
         let mut i = 0;
         let mut num_v = self.vertices.len();
@@ -176,7 +183,7 @@ impl ConvexCell {
                     &self.clipping_planes,
                 ));
             }
-            self.update_safety_radius();
+            self.update_safety_radius(dimensionality);
         }
     }
 
@@ -209,10 +216,22 @@ impl ConvexCell {
         boundary
     }
 
-    fn update_safety_radius(&mut self) {
+    fn update_safety_radius(&mut self, dimensionality: Dimensionality) {
         let mut max_dist_2 = 0f64;
         for vertex in self.vertices.iter() {
-            max_dist_2 = max_dist_2.max(self.loc.distance_squared(vertex.loc));
+            let mut v_loc = vertex.loc;
+            // Ignore the unused dimensions fo the safety radius!
+            match dimensionality {
+                Dimensionality::Dimensionality1D => {
+                    v_loc.y = self.loc.y;
+                    v_loc.z = self.loc.z;
+                }
+                Dimensionality::Dimensionality2D => {
+                    v_loc.z = self.loc.z
+                }
+                _ => (),
+            }
+            max_dist_2 = max_dist_2.max(self.loc.distance_squared(v_loc));
         }
         self.safety_radius = 2. * max_dist_2.sqrt();
     }
@@ -254,7 +273,7 @@ impl VoronoiFace {
     }
 
     fn finalize(&mut self) {
-        let area_inv = if self.area != 0. {1. / self.area } else { 0. };
+        let area_inv = if self.area != 0. { 1. / self.area } else { 0. };
         self.midpoint *= area_inv;
     }
 
@@ -274,8 +293,8 @@ impl VoronoiFace {
         self.midpoint
     }
 
-    pub fn normal(&self) ->DVec3 {
-        self.normal    
+    pub fn normal(&self) -> DVec3 {
+        self.normal
     }
 }
 
@@ -432,6 +451,24 @@ impl VoronoiCell {
     }
 }
 
+#[derive(Clone, Copy)]
+pub enum Dimensionality {
+    Dimensionality1D,
+    Dimensionality2D,
+    Dimensionality3D,
+}
+
+impl From<usize> for Dimensionality {
+    fn from(u: usize) -> Self {
+        match u {
+            1 => Dimensionality::Dimensionality1D,
+            2 => Dimensionality::Dimensionality2D,
+            3 => Dimensionality::Dimensionality3D,
+            _ => panic!("Invalid Voronoi dimensionality!"),
+        }
+    }
+}
+
 pub struct Voronoi {
     anchor: DVec3,
     width: DVec3,
@@ -442,12 +479,15 @@ pub struct Voronoi {
 
 impl Voronoi {
     /// Construct a Voronoi tesselation using the VoroGPU algorithm with `k` nearest neighbours.
-    pub fn build(generators: &[DVec3], anchor: DVec3, width: DVec3) -> Self {
+    pub fn build(generators: &[DVec3], anchor: DVec3, width: DVec3, dimensionality: usize) -> Self {
+        let dimensionality = dimensionality.into();
+
         let generators: Vec<Generator> = generators
             .iter()
             .enumerate()
             .map(|(id, &loc)| Generator { loc, id })
             .collect();
+
         let rtree = build_rtree(&generators);
 
         let mut faces: Vec<Vec<VoronoiFace>> = generators.iter().map(|_| vec![]).collect();
@@ -455,8 +495,9 @@ impl Voronoi {
             .par_iter()
             .zip(faces.par_iter_mut())
             .map(|(generator, faces)| {
-                let mut convex_cell = ConvexCell::init(generator.loc, anchor, width, generator.id);
-                convex_cell.build(&generators, nn_iter(&rtree, generator.loc));
+                let mut convex_cell =
+                    ConvexCell::init(generator.loc, anchor, width, generator.id, dimensionality);
+                convex_cell.build(&generators, nn_iter(&rtree, generator.loc), dimensionality);
                 VoronoiCell::from_convex_cell(&convex_cell, faces)
             })
             .collect();
