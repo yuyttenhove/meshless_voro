@@ -1,5 +1,5 @@
-# meshless_voro
-An implementation of the Meshless Voronoi algorithm (see: https://hal.inria.fr/hal-01927559/file/voroGPU.pdf) in rust.
+# meshless_voronoi
+An implementation of the [Meshless Voronoi algorithm](https://hal.inria.fr/hal-01927559/file/voroGPU.pdf) in rust.
 
-# TBD
-gpu implementation
+The algorithm is primarily aimed at generating 3D Voronoi diagrams, but can also be used to compute 1D and 2D Voronoi diagrams.
+Like Voro++, this algorithm is _meshless_ implying that no globally consistent geometry is constructed. Instead a cell based approach is used and we only compute integrals (cell/face volumes and centroids) and connectivity information (it is possible to determine a cell's neighbours). 
