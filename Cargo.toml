@@ -1,7 +1,7 @@
 [package]
 name = "meshless_voronoi"
 description = "An implementation of the Meshless Voronoi algorithm in rust."
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 keywords = ["voronoi","graphics","diagram"]
@@ -13,7 +13,10 @@ exclude = ["plot_vortess.py"]
 [dependencies]
 glam = "0.22"
 rstar = "0.9.3"
-rayon = "1.6.1"
+rayon = { version = "1.6.1", optional = true }
+
+[features]
+rayon = ["dep:rayon"]
 
 [dev-dependencies]
 rand = "0.8"

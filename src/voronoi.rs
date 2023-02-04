@@ -1,6 +1,7 @@
 use std::{fs::File, io::Write};
 
 use glam::{DMat3, DVec3};
+#[cfg(feature = "rayon")]
 use rayon::prelude::*;
 
 use crate::{
@@ -237,6 +238,7 @@ impl ConvexCell {
     }
 }
 
+/// A Voronoi generator
 #[derive(Clone, Copy, Debug)]
 pub struct Generator {
     loc: DVec3,
@@ -244,20 +246,36 @@ pub struct Generator {
 }
 
 impl Generator {
+    fn new(id: usize, loc: DVec3, dimensionality: Dimensionality) -> Self {
+        let mut loc = loc;
+        match dimensionality {
+            Dimensionality::Dimensionality1D => {
+                loc.y = 0.;
+                loc.z = 0.;
+            }
+            Dimensionality::Dimensionality2D => loc.z = 0.,
+            _ => (),
+        }
+        Self { loc, id }
+    }
+
+    /// Get the id of this generator
     pub fn id(&self) -> usize {
         self.id
     }
 
+    /// Get the position of this generator
     pub fn loc(&self) -> DVec3 {
         self.loc
     }
 }
 
+/// A Voronoi face between two neighbouring generators.
 pub struct VoronoiFace {
     left: usize,
     right: Option<usize>,
     area: f64,
-    midpoint: DVec3,
+    centroid: DVec3,
     normal: DVec3,
 }
 
@@ -267,37 +285,44 @@ impl VoronoiFace {
             left,
             right,
             area: 0.,
-            midpoint: DVec3::ZERO,
+            centroid: DVec3::ZERO,
             normal,
         }
     }
 
     fn finalize(&mut self) {
         let area_inv = if self.area != 0. { 1. / self.area } else { 0. };
-        self.midpoint *= area_inv;
+        self.centroid *= area_inv;
     }
 
+    /// Get the index of the generator on the _left_ of this face.
     pub fn left(&self) -> usize {
         self.left
     }
 
+    /// Get the index of the generator on the _right_ of this face. 
+    /// Returns `None` if if this is a boundary face (i.e. obtained by clipping a Voronoi cell with the simulation volume).
     pub fn right(&self) -> Option<usize> {
         self.right
     }
 
+    /// Get the area of this face.
     pub fn area(&self) -> f64 {
         self.area
     }
 
-    pub fn midpoint(&self) -> DVec3 {
-        self.midpoint
+    /// Get the position of the centroid of this face.
+    pub fn centroid(&self) -> DVec3 {
+        self.centroid
     }
 
+    /// Get a normal vector to this face, pointing away from the _left_ generator.
     pub fn normal(&self) -> DVec3 {
         self.normal
     }
 }
 
+/// A Voronoi cell.
 #[derive(Debug, Clone, Copy)]
 pub struct VoronoiCell {
     loc: DVec3,
@@ -318,6 +343,9 @@ impl VoronoiCell {
         }
     }
 
+    /// Build a Voronoi cell from a ConvexCell by computing the relevant integrals.
+    /// 
+    /// Any Voronoi faces that are created by the construction of this cell are stored in the `faces` vector.
     fn from_convex_cell(convex_cell: &ConvexCell, faces: &mut Vec<VoronoiFace>) -> Self {
         let idx = convex_cell.idx;
         let loc = convex_cell.loc;
@@ -396,7 +424,7 @@ impl VoronoiCell {
                 let v_001 = signed_area_tri(g_on_p012, g_on_p01, g_on_p0, loc, v_001);
                 let v_002 = signed_area_tri(g_on_p012, g_on_p0, g_on_p02, loc, v_002);
                 f.area += v_001 + v_002;
-                f.midpoint += frac_1_3
+                f.centroid += frac_1_3
                     * (v_001 * (g_on_p0 + g_on_p01 + g_on_p012)
                         + v_002 * (g_on_p0 + g_on_p02 + g_on_p012));
             });
@@ -404,7 +432,7 @@ impl VoronoiCell {
                 let v_101 = signed_area_tri(g_on_p012, g_on_p1, g_on_p01, loc, v_101);
                 let v_112 = signed_area_tri(g_on_p012, g_on_p12, g_on_p1, loc, v_112);
                 f.area += v_101 + v_112;
-                f.midpoint += frac_1_3
+                f.centroid += frac_1_3
                     * (v_101 * (g_on_p1 + g_on_p01 + g_on_p012)
                         + v_112 * (g_on_p1 + g_on_p12 + g_on_p012));
             });
@@ -412,7 +440,7 @@ impl VoronoiCell {
                 let v_202 = signed_area_tri(g_on_p012, g_on_p02, g_on_p2, loc, v_202);
                 let v_212 = signed_area_tri(g_on_p012, g_on_p2, g_on_p12, loc, v_212);
                 f.area += v_202 + v_212;
-                f.midpoint += frac_1_3
+                f.centroid += frac_1_3
                     * (v_202 * (g_on_p2 + g_on_p02 + g_on_p012)
                         + v_212 * (g_on_p2 + g_on_p12 + g_on_p012));
             });
@@ -429,18 +457,22 @@ impl VoronoiCell {
         VoronoiCell::init(loc, centroid / volume, volume)
     }
 
+    /// Get the position of the generator of this Voronoi cell.
     pub fn loc(&self) -> DVec3 {
         self.loc
     }
 
+    /// Get the position of the centroid of this cell
     pub fn centroid(&self) -> DVec3 {
         self.centroid
     }
 
+    /// Get the volume of this cell
     pub fn volume(&self) -> f64 {
         self.volume
     }
 
+    /// Get an `Iterator` over the Voronoi faces that have this cell as their left _or_ right generator.
     pub fn faces<'a>(
         &'a self,
         voronoi: &'a Voronoi,
@@ -469,6 +501,7 @@ impl From<usize> for Dimensionality {
     }
 }
 
+/// The main Voronoi struct
 pub struct Voronoi {
     anchor: DVec3,
     width: DVec3,
@@ -478,19 +511,46 @@ pub struct Voronoi {
 }
 
 impl Voronoi {
-    /// Construct a Voronoi tesselation using the VoroGPU algorithm with `k` nearest neighbours.
+    /// Construct the Voronoi tesselation. This method runs in parallel if the `"rayon"` feature is enabled.
+    /// 
+    /// Iteratively construct each Voronoi cell independently of each other by repeatedly clipping it by the nearest generators until a safety criterion is reached.
+    /// All Voronoi cells are clipped by a simulation volume if necessary.
+    /// 
+    /// * `generators` - The seed points of the Voronoi cells.
+    /// * `anchor` - The lower left corner of the simulation volume.
+    /// * `width` - The width of the simulation volume.
+    /// * `dimensionality` - The dimensionality of the Voronoi tesselation. The algorithm is mainly aimed at constructiong 3D Voronoi tesselations, but can be used for 1 or 2D as well.
     pub fn build(generators: &[DVec3], anchor: DVec3, width: DVec3, dimensionality: usize) -> Self {
         let dimensionality = dimensionality.into();
 
+        // Normalize the unused components of the simulation volume, so that the lower dimensional volumes will be correct.
+        let mut anchor = anchor;
+        let mut width = width;
+        match dimensionality {
+            Dimensionality::Dimensionality1D => {
+                anchor.y = -0.5;
+                anchor.z = -0.5;
+                width.y = 1.;
+                width.z = 1.
+            }
+            Dimensionality::Dimensionality2D => {
+                anchor.z = -0.5;
+                width.z = 1.;
+            }
+            _ => (),
+        }
+
+        
         let generators: Vec<Generator> = generators
             .iter()
             .enumerate()
-            .map(|(id, &loc)| Generator { loc, id })
+            .map(|(id, &loc)| Generator::new(id, loc, dimensionality))
             .collect();
 
         let rtree = build_rtree(&generators);
 
         let mut faces: Vec<Vec<VoronoiFace>> = generators.iter().map(|_| vec![]).collect();
+        #[cfg(feature = "rayon")]
         let cells = generators
             .par_iter()
             .zip(faces.par_iter_mut())
@@ -501,6 +561,18 @@ impl Voronoi {
                 VoronoiCell::from_convex_cell(&convex_cell, faces)
             })
             .collect();
+        #[cfg(not(feature = "rayon"))]
+        let cells = generators
+            .iter()
+            .zip(faces.iter_mut())
+            .map(|(generator, faces)| {
+                let mut convex_cell =
+                    ConvexCell::init(generator.loc, anchor, width, generator.id, dimensionality);
+                convex_cell.build(&generators, nn_iter(&rtree, generator.loc), dimensionality);
+                VoronoiCell::from_convex_cell(&convex_cell, faces)
+            })
+            .collect();
+         
 
         Voronoi {
             anchor,
@@ -512,7 +584,7 @@ impl Voronoi {
         .finalize()
     }
 
-    /// Compute the cell_face_connections.
+    /// Link the Voronoi faces to their respective cells.
     fn finalize(mut self) -> Self {
         let mut cell_face_connections: Vec<Vec<usize>> =
             (0..self.cells.len()).map(|_| vec![]).collect();
@@ -536,41 +608,50 @@ impl Voronoi {
         self
     }
 
+    /// The anchor of the simulation volume. All Voronoi cells are clipped by this simulation volume.
     pub fn anchor(&self) -> DVec3 {
         self.anchor
     }
 
+    /// The width of the simulation volume. All Voronoi cells are clipped by this simulation volume.
     pub fn width(&self) -> DVec3 {
         self.width
     }
 
+    /// Get the voronoi cells.
     pub fn cells(&self) -> &[VoronoiCell] {
         self.cells.as_ref()
     }
 
+    /// Get the voronoi faces.
     pub fn faces(&self) -> &[VoronoiFace] {
         self.faces.as_ref()
     }
 
+    /// Get a vector of the Voronoi faces by consuming the Voronoi struct.
     pub fn into_faces(self) -> Vec<VoronoiFace> {
         self.faces
     }
 
+    /// Get the links between the cells and their faces.
     pub fn cell_face_connections(&self) -> &[usize] {
         self.cell_face_connections.as_ref()
     }
 
+    /// Dump the cell and face info to 2 files called "faces.txt" and "cells.txt".
+    /// 
+    /// Mainly for debugging purposes.
     pub fn save(&self) {
         let mut file = File::create("faces.txt").unwrap();
         for face in &self.faces {
             let n = match face.right {
                 Some(right_idx) => self.cells[right_idx].loc - self.cells[face.left].loc,
-                None => (face.midpoint - self.cells[face.left].loc).project_onto(face.normal),
+                None => (face.centroid - self.cells[face.left].loc).project_onto(face.normal),
             };
             writeln!(
                 file,
                 "{}\t({}, {}, {})\t({}, {}, {})",
-                face.area, face.midpoint.x, face.midpoint.y, face.midpoint.z, n.x, n.y, n.z,
+                face.area, face.centroid.x, face.centroid.y, face.centroid.z, n.x, n.y, n.z,
             )
             .unwrap();
         }
