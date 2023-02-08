@@ -651,19 +651,26 @@ impl Voronoi {
     /// Dump the cell and face info to 2 files called "faces.txt" and "cells.txt".
     ///
     /// Mainly for debugging purposes.
-    pub fn save(&self) {
-        let mut file = File::create("faces.txt").unwrap();
+    pub fn save(&self) -> Result<(), std::io::Error> {
+        let mut file = File::create("faces.txt")?;
         for face in &self.faces {
-            let n = match face.right {
-                Some(right_idx) => self.cells[right_idx].loc - self.cells[face.left].loc,
-                None => (face.centroid - self.cells[face.left].loc).project_onto(face.normal),
-            };
-            writeln!(
-                file,
-                "{}\t({}, {}, {})\t({}, {}, {})",
-                face.area, face.centroid.x, face.centroid.y, face.centroid.z, n.x, n.y, n.z,
-            )
-            .unwrap();
+            let centroid = face.centroid;
+            let n = face.normal;
+            match self.dimensionality {
+                Dimensionality::Dimensionality1D => {
+                    writeln!(file, "{}\t({})\t({})", face.area, centroid.x, n.x,)?
+                }
+                Dimensionality::Dimensionality2D => writeln!(
+                    file,
+                    "{}\t({}, {})\t({}, {})",
+                    face.area, centroid.x, centroid.y, n.x, n.y,
+                )?,
+                Dimensionality::Dimensionality3D => writeln!(
+                    file,
+                    "{}\t({}, {}, {})\t({}, {}, {})",
+                    face.area, centroid.x, centroid.y, centroid.z, n.x, n.y, n.z,
+                )?,
+            }
         }
         let mut file = File::create("cells.txt").unwrap();
         for cell in &self.cells {
@@ -677,8 +684,9 @@ impl Voronoi {
                 cell.centroid.x,
                 cell.centroid.y,
                 cell.centroid.z
-            )
-            .unwrap();
+            )?;
         }
+
+        Ok(())
     }
 }

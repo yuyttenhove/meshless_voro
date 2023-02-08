@@ -236,7 +236,6 @@ fn test_2_d() {
     };
     let generators = perturbed_plane(anchor, width, count, pert);
     let voronoi = Voronoi::build(&generators, anchor, width, DIM2D);
-    voronoi.save();
 
     assert_approx_eq!(
         f64,
