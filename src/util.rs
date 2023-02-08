@@ -1,4 +1,4 @@
-use glam::{DVec3, DMat3};
+use glam::{DMat3, DVec3};
 
 pub trait GetMutMultiple {
     type Output;
@@ -58,18 +58,19 @@ pub fn signed_area_tri(v0: DVec3, v1: DVec3, v2: DVec3, t: DVec3, volume: f64) -
         None => return 0.,
     };
     let height = (t - v0).dot(n).abs();
-    assert!(height > 0., "Cannot determine signed area of ground face of tetrahedron with height 0!");
+    assert!(
+        height > 0.,
+        "Cannot determine signed area of ground face of tetrahedron with height 0!"
+    );
 
     3. * volume / height
 }
-
 
 #[cfg(test)]
 mod test {
     use glam::DVec3;
 
     use super::*;
-
 
     #[test]
     #[should_panic]
@@ -117,9 +118,13 @@ mod test {
         let area2 = signed_area_tri(v0, v2, v1, t, signed_volume_tet(v0, v2, v1, t));
         assert_eq!(area, -area2);
 
-        let t = DVec3::Z + DVec3{ x: 10., y: 10., z: 0. };
+        let t = DVec3::Z
+            + DVec3 {
+                x: 10.,
+                y: 10.,
+                z: 0.,
+            };
         let area3 = signed_area_tri(v0, v1, v2, t, signed_volume_tet(v0, v1, v2, t));
         assert_eq!(area, area3)
     }
 }
-

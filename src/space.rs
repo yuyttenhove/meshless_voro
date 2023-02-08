@@ -4,8 +4,6 @@ use std::collections::BinaryHeap;
 
 use crate::part::Part;
 
-
-
 struct Cell {
     loc: DVec3,
     width: DVec3,
@@ -64,11 +62,12 @@ impl Space {
             for j in 0..cdim.y {
                 for k in 0..cdim.z {
                     cells.push(Cell {
-                        loc: anchor + DVec3 {
-                            x: i as f64 * c_width.x,
-                            y: j as f64 * c_width.x,
-                            z: k as f64 * c_width.x,
-                        },
+                        loc: anchor
+                            + DVec3 {
+                                x: i as f64 * c_width.x,
+                                y: j as f64 * c_width.x,
+                                z: k as f64 * c_width.x,
+                            },
                         width: c_width,
                         offset: 0,
                         count: 0,
@@ -89,7 +88,8 @@ impl Space {
     pub fn add_parts(&mut self, positions: &[DVec3]) {
         // Determine the cid of all positions and create parts
         let mut parts: Vec<Part> = positions
-            .iter().enumerate()
+            .iter()
+            .enumerate()
             .map(|(pid, p_x)| {
                 let rel_pos = *p_x - self.anchor;
                 assert!(
@@ -175,7 +175,7 @@ impl Space {
                     // Nothing to do here
                     break;
                 }
-                
+
                 let r_ring = self.get_r_ring(cid, r);
                 for ngb_cid in r_ring {
                     let ngb_cell = &self.cells[ngb_cid];
@@ -297,11 +297,12 @@ mod tests {
         for i in 0..4 {
             for j in 0..4 {
                 for k in 0..4 {
-                    let cell_anchor = anchor + DVec3 {
-                        x: i as f64 * 0.5,
-                        y: j as f64 * 0.5,
-                        z: k as f64 * 0.5,
-                    };
+                    let cell_anchor = anchor
+                        + DVec3 {
+                            x: i as f64 * 0.5,
+                            y: j as f64 * 0.5,
+                            z: k as f64 * 0.5,
+                        };
                     for _ in 0..3 {
                         // Add 3 parts per cell
                         let rel_pos = DVec3 {

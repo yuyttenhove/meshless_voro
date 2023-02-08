@@ -2,7 +2,6 @@ use super::*;
 use float_cmp::assert_approx_eq;
 use rand::{distributions::Uniform, prelude::*};
 
-
 const DIM2D: usize = 2;
 const DIM3D: usize = 3;
 
@@ -222,7 +221,7 @@ fn test_125_cells() {
     for cell in &voronoi.cells {
         total_volume += cell.volume;
     }
-    assert_approx_eq!(f64, total_volume, 1., epsilon=1e-10, ulps=8)
+    assert_approx_eq!(f64, total_volume, 1., epsilon = 1e-10, ulps = 8)
 }
 
 #[test]
@@ -230,12 +229,22 @@ fn test_2_d() {
     let pert = 0.95;
     let count = 100;
     let anchor = DVec3::splat(2.);
-    let width = DVec3{ x: 2., y: 2., z: 1.};
+    let width = DVec3 {
+        x: 2.,
+        y: 2.,
+        z: 1.,
+    };
     let generators = perturbed_plane(anchor, width, count, pert);
     let voronoi = Voronoi::build(&generators, anchor, width, DIM2D);
     voronoi.save();
-    
-    assert_approx_eq!(f64, voronoi.cells.iter().map(|c| c.volume).sum(), 4., epsilon=1e-10, ulps=8);
+
+    assert_approx_eq!(
+        f64,
+        voronoi.cells.iter().map(|c| c.volume).sum(),
+        4.,
+        epsilon = 1e-10,
+        ulps = 8
+    );
 }
 
 #[test]
@@ -248,5 +257,5 @@ fn test_3_d() {
     let voronoi = Voronoi::build(&generators, anchor, width, DIM3D);
     let total_volume: f64 = voronoi.cells.iter().map(|c| c.volume).sum();
     assert_eq!(voronoi.cells.len(), generators.len());
-    assert_approx_eq!(f64, total_volume, 8., epsilon=1e-10, ulps=8);
+    assert_approx_eq!(f64, total_volume, 8., epsilon = 1e-10, ulps = 8);
 }

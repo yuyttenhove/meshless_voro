@@ -227,9 +227,7 @@ impl ConvexCell {
                     v_loc.y = self.loc.y;
                     v_loc.z = self.loc.z;
                 }
-                Dimensionality::Dimensionality2D => {
-                    v_loc.z = self.loc.z
-                }
+                Dimensionality::Dimensionality2D => v_loc.z = self.loc.z,
                 _ => (),
             }
             max_dist_2 = max_dist_2.max(self.loc.distance_squared(v_loc));
@@ -295,12 +293,20 @@ impl VoronoiFace {
         self.centroid *= area_inv;
     }
 
+    fn has_valid_dimensionality(&self, dimensionality: Dimensionality) -> bool {
+        match dimensionality {
+            Dimensionality::Dimensionality1D => self.normal.y == 0. && self.normal.z == 0.,
+            Dimensionality::Dimensionality2D => self.normal.z == 0.,
+            Dimensionality::Dimensionality3D => true,
+        }
+    }
+
     /// Get the index of the generator on the _left_ of this face.
     pub fn left(&self) -> usize {
         self.left
     }
 
-    /// Get the index of the generator on the _right_ of this face. 
+    /// Get the index of the generator on the _right_ of this face.
     /// Returns `None` if if this is a boundary face (i.e. obtained by clipping a Voronoi cell with the simulation volume).
     pub fn right(&self) -> Option<usize> {
         self.right
@@ -344,7 +350,7 @@ impl VoronoiCell {
     }
 
     /// Build a Voronoi cell from a ConvexCell by computing the relevant integrals.
-    /// 
+    ///
     /// Any Voronoi faces that are created by the construction of this cell are stored in the `faces` vector.
     fn from_convex_cell(convex_cell: &ConvexCell, faces: &mut Vec<VoronoiFace>) -> Self {
         let idx = convex_cell.idx;
@@ -508,14 +514,15 @@ pub struct Voronoi {
     cells: Vec<VoronoiCell>,
     faces: Vec<VoronoiFace>,
     cell_face_connections: Vec<usize>,
+    dimensionality: Dimensionality,
 }
 
 impl Voronoi {
     /// Construct the Voronoi tesselation. This method runs in parallel if the `"rayon"` feature is enabled.
-    /// 
+    ///
     /// Iteratively construct each Voronoi cell independently of each other by repeatedly clipping it by the nearest generators until a safety criterion is reached.
     /// All Voronoi cells are clipped by a simulation volume if necessary.
-    /// 
+    ///
     /// * `generators` - The seed points of the Voronoi cells.
     /// * `anchor` - The lower left corner of the simulation volume.
     /// * `width` - The width of the simulation volume.
@@ -540,7 +547,6 @@ impl Voronoi {
             _ => (),
         }
 
-        
         let generators: Vec<Generator> = generators
             .iter()
             .enumerate()
@@ -572,14 +578,18 @@ impl Voronoi {
                 VoronoiCell::from_convex_cell(&convex_cell, faces)
             })
             .collect();
-         
 
         Voronoi {
             anchor,
             width,
             cells,
-            faces: faces.into_iter().flatten().collect(),
+            faces: faces
+                .into_iter()
+                .flatten()
+                .filter(|f| f.has_valid_dimensionality(dimensionality))
+                .collect(),
             cell_face_connections: vec![],
+            dimensionality,
         }
         .finalize()
     }
@@ -639,7 +649,7 @@ impl Voronoi {
     }
 
     /// Dump the cell and face info to 2 files called "faces.txt" and "cells.txt".
-    /// 
+    ///
     /// Mainly for debugging purposes.
     pub fn save(&self) {
         let mut file = File::create("faces.txt").unwrap();
