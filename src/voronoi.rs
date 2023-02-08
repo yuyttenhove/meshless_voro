@@ -487,6 +487,16 @@ impl VoronoiCell {
             [self.face_connections_offset..(self.face_connections_offset + self.face_count)];
         Box::new(indices.iter().map(|&i| &voronoi.faces[i]))
     }
+
+    /// Get the offset of the slice of the indices of this cell's faces in the `Voronoi::cell_face_connections` array.
+    pub fn face_connections_offset(&self) -> usize {
+        self.face_connections_offset
+    }
+
+    /// Get the length of the slice of the indices of this cell's faces in the `Voronoi::cell_face_connections` array.
+    pub fn face_count(&self) -> usize {
+        self.face_count
+    }
 }
 
 #[derive(Clone, Copy)]
