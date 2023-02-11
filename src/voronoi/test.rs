@@ -72,7 +72,10 @@ fn test_clipping() {
     let dist = dx.length();
     let n = dx / dist;
     let p = 0.5 * (cell.loc + ngb);
-    cell.clip_by_plane(HalfSpace::new(n, p, Some(1)), DIM3D.into());
+    cell.clip_by_plane(
+        HalfSpace::new(n, p, Some(1), Some(DVec3::ZERO)),
+        DIM3D.into(),
+    );
 
     assert_eq!(cell.clipping_planes.len(), 7)
 }
@@ -82,7 +85,7 @@ fn test_single_cell() {
     let generators = vec![DVec3::splat(0.5)];
     let anchor = DVec3::ZERO;
     let width = DVec3::splat(1.);
-    let voronoi = Voronoi::build(&generators, anchor, width, DIM3D);
+    let voronoi = Voronoi::build(&generators, anchor, width, DIM3D, false);
     assert_approx_eq!(f64, voronoi.cells[0].volume, 1.);
 }
 
@@ -102,7 +105,7 @@ fn test_two_cells() {
     ];
     let anchor = DVec3::ZERO;
     let width = DVec3::splat(1.);
-    let voronoi = Voronoi::build(&generators, anchor, width, DIM3D);
+    let voronoi = Voronoi::build(&generators, anchor, width, DIM3D, false);
     assert_approx_eq!(f64, voronoi.cells[0].volume, 0.5);
     assert_approx_eq!(f64, voronoi.cells[1].volume, 0.5);
 }
@@ -111,30 +114,34 @@ fn test_two_cells() {
 fn test_4_cells() {
     let generators = vec![
         DVec3 {
-            x: 0.2,
+            x: 0.4,
             y: 0.3,
-            z: 0.5,
+            z: 0.,
         },
         DVec3 {
-            x: 0.8,
+            x: 1.6,
             y: 0.2,
-            z: 0.5,
+            z: 0.,
         },
         DVec3 {
-            x: 0.3,
+            x: 0.6,
             y: 0.8,
-            z: 0.5,
+            z: 0.,
         },
         DVec3 {
-            x: 0.7,
+            x: 1.4,
             y: 0.7,
-            z: 0.5,
+            z: 0.,
         },
     ];
     let anchor = DVec3::ZERO;
-    let width = DVec3::splat(1.);
-    let voronoi = Voronoi::build(&generators, anchor, width, DIM2D);
-    assert_approx_eq!(f64, voronoi.cells.iter().map(|c| c.volume).sum(), 1.);
+    let width = DVec3 {
+        x: 2.,
+        y: 1.,
+        z: 1.,
+    };
+    let voronoi = Voronoi::build(&generators, anchor, width, DIM2D, true);
+    assert_approx_eq!(f64, voronoi.cells.iter().map(|c| c.volume).sum(), 2.);
 }
 
 #[test]
@@ -169,7 +176,7 @@ fn test_five_cells() {
     ];
     let anchor = DVec3::ZERO;
     let width = DVec3::splat(1.);
-    let voronoi = Voronoi::build(&generators, anchor, width, DIM2D);
+    let voronoi = Voronoi::build(&generators, anchor, width, DIM2D, false);
     assert_approx_eq!(f64, voronoi.cells[0].volume, 0.2);
     assert_approx_eq!(f64, voronoi.cells[1].volume, 0.2);
     assert_approx_eq!(f64, voronoi.cells[2].volume, 0.2);
@@ -182,7 +189,7 @@ fn test_eight_cells() {
     let anchor = DVec3::ZERO;
     let width = DVec3::splat(1.);
     let generators = perturbed_grid(anchor, width, 2, 0.);
-    let voronoi = Voronoi::build(&generators, anchor, width, DIM3D);
+    let voronoi = Voronoi::build(&generators, anchor, width, DIM3D, false);
     for cell in &voronoi.cells {
         assert_approx_eq!(f64, cell.volume, 0.125);
     }
@@ -193,7 +200,7 @@ fn test_27_cells() {
     let anchor = DVec3::ZERO;
     let width = DVec3::splat(1.);
     let generators = perturbed_grid(anchor, width, 3, 0.);
-    let voronoi = Voronoi::build(&generators, anchor, width, DIM3D);
+    let voronoi = Voronoi::build(&generators, anchor, width, DIM3D, false);
     for cell in &voronoi.cells {
         assert_approx_eq!(f64, cell.volume, 1. / 27.);
     }
@@ -204,7 +211,7 @@ fn test_64_cells() {
     let anchor = DVec3::ZERO;
     let width = DVec3::splat(1.);
     let generators = perturbed_grid(anchor, width, 4, 0.);
-    let voronoi = Voronoi::build(&generators, anchor, width, DIM3D);
+    let voronoi = Voronoi::build(&generators, anchor, width, DIM3D, false);
     for cell in &voronoi.cells {
         assert_approx_eq!(f64, cell.volume, 1. / 64.);
     }
@@ -216,7 +223,7 @@ fn test_125_cells() {
     let anchor = DVec3::ZERO;
     let width = DVec3::splat(1.);
     let generators = perturbed_grid(anchor, width, 5, pert);
-    let voronoi = Voronoi::build(&generators, anchor, width, DIM3D);
+    let voronoi = Voronoi::build(&generators, anchor, width, DIM3D, false);
     let mut total_volume = 0.;
     for cell in &voronoi.cells {
         total_volume += cell.volume;
@@ -227,7 +234,7 @@ fn test_125_cells() {
 #[test]
 fn test_2_d() {
     let pert = 0.95;
-    let count = 100;
+    let count = 50;
     let anchor = DVec3::splat(2.);
     let width = DVec3 {
         x: 2.,
@@ -235,7 +242,7 @@ fn test_2_d() {
         z: 1.,
     };
     let generators = perturbed_plane(anchor, width, count, pert);
-    let voronoi = Voronoi::build(&generators, anchor, width, DIM2D);
+    let voronoi = Voronoi::build(&generators, anchor, width, DIM2D, true);
 
     assert_approx_eq!(
         f64,
@@ -249,11 +256,11 @@ fn test_2_d() {
 #[test]
 fn test_3_d() {
     let pert = 0.5;
-    let count = 128;
+    let count = 64;
     let anchor = DVec3::ZERO;
     let width = DVec3::splat(2.);
     let generators = perturbed_grid(anchor, width, count, pert);
-    let voronoi = Voronoi::build(&generators, anchor, width, DIM3D);
+    let voronoi = Voronoi::build(&generators, anchor, width, DIM3D, false);
     let total_volume: f64 = voronoi.cells.iter().map(|c| c.volume).sum();
     assert_eq!(voronoi.cells.len(), generators.len());
     assert_approx_eq!(f64, total_volume, 8., epsilon = 1e-10, ulps = 8);

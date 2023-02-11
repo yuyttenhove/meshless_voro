@@ -5,7 +5,7 @@ use glam::{DMat3, DVec3};
 use rayon::prelude::*;
 
 use crate::{
-    rtree_nn::{build_rtree, nn_iter},
+    rtree_nn::{build_rtree, nn_iter, wrapping_nn_iter},
     simple_cycle::SimpleCycle,
     util::{signed_area_tri, signed_volume_tet, GetMutMultiple},
 };
@@ -18,15 +18,17 @@ struct HalfSpace {
     p: DVec3,
     d: f64,
     right_idx: Option<usize>,
+    shift: Option<DVec3>,
 }
 
 impl HalfSpace {
-    fn new(n: DVec3, p: DVec3, right_idx: Option<usize>) -> Self {
+    fn new(n: DVec3, p: DVec3, right_idx: Option<usize>, shift: Option<DVec3>) -> Self {
         HalfSpace {
             n,
             p,
             d: n.dot(p),
             right_idx,
+            shift,
         }
     }
 
@@ -42,7 +44,7 @@ impl HalfSpace {
     /// Project the a vertex on the intersection of two planes.
     fn project_onto_intersection(&self, other: &Self, vertex: DVec3) -> DVec3 {
         // first create a plane through the point perpendicular to both planes
-        let p_perp = HalfSpace::new(self.n.cross(other.n), vertex, None);
+        let p_perp = HalfSpace::new(self.n.cross(other.n), vertex, None, None);
 
         // The projection is the intersection of the planes self, other and p_perp
         intersect_planes(self, other, &p_perp)
@@ -93,12 +95,12 @@ impl ConvexCell {
         dimensionality: Dimensionality,
     ) -> Self {
         let clipping_planes = vec![
-            HalfSpace::new(DVec3::X, anchor, None),
-            HalfSpace::new(DVec3::NEG_X, anchor + width, None),
-            HalfSpace::new(DVec3::Y, anchor, None),
-            HalfSpace::new(DVec3::NEG_Y, anchor + width, None),
-            HalfSpace::new(DVec3::Z, anchor, None),
-            HalfSpace::new(DVec3::NEG_Z, anchor + width, None),
+            HalfSpace::new(DVec3::X, anchor, None, None),
+            HalfSpace::new(DVec3::NEG_X, anchor + width, None, None),
+            HalfSpace::new(DVec3::Y, anchor, None, None),
+            HalfSpace::new(DVec3::NEG_Y, anchor + width, None, None),
+            HalfSpace::new(DVec3::Z, anchor, None, None),
+            HalfSpace::new(DVec3::NEG_Z, anchor + width, None, None),
         ];
         let vertices = vec![
             Vertex::from_dual(2, 5, 0, &clipping_planes),
@@ -121,33 +123,40 @@ impl ConvexCell {
         cell
     }
 
-    /// Build the voronoi cell by repeatedly intersecting it with the appropriate half spaces
+    /// Build the Convex cell by repeatedly intersecting it with the appropriate half spaces
     fn build(
         &mut self,
         generators: &[Generator],
-        mut nearest_neighbours: Box<dyn Iterator<Item = usize> + '_>,
+        mut nearest_neighbours: Box<dyn Iterator<Item = (usize, Option<DVec3>)> + '_>,
         dimensionality: Dimensionality,
     ) {
         // skip the first nearest neighbour (will be this cell)
         assert_eq!(
             nearest_neighbours
                 .next()
-                .expect("Nearest neighbours cannot be empty!"),
+                .expect("Nearest neighbours cannot be empty!")
+                .0,
             self.idx,
             "First nearest neighbour should be the generator itself!"
         );
         // now loop over the nearest neighbours and clip this cell until the safety radius is reached
-        for idx in nearest_neighbours {
+        for (idx, shift) in nearest_neighbours {
             let generator = generators[idx];
-            let dx = self.loc - generator.loc;
+            let ngb_loc;
+            if let Some(shift) = shift {
+                ngb_loc = generator.loc + shift;
+            } else {
+                ngb_loc = generator.loc;
+            }
+            let dx = self.loc - ngb_loc;
             let dist = dx.length();
             assert!(dist.is_finite() && dist > 0.0, "Degenerate point set!");
             if self.safety_radius < dist {
                 return;
             }
             let n = dx / dist;
-            let p = 0.5 * (self.loc + generator.loc);
-            self.clip_by_plane(HalfSpace::new(n, p, Some(idx)), dimensionality);
+            let p = 0.5 * (self.loc + ngb_loc);
+            self.clip_by_plane(HalfSpace::new(n, p, Some(idx), shift), dimensionality);
         }
     }
 
@@ -275,16 +284,18 @@ pub struct VoronoiFace {
     area: f64,
     centroid: DVec3,
     normal: DVec3,
+    shift: Option<DVec3>,
 }
 
 impl VoronoiFace {
-    fn init(left: usize, right: Option<usize>, normal: DVec3) -> Self {
+    fn init(left: usize, right: Option<usize>, normal: DVec3, shift: Option<DVec3>) -> Self {
         VoronoiFace {
             left,
             right,
             area: 0.,
             centroid: DVec3::ZERO,
             normal,
+            shift,
         }
     }
 
@@ -307,7 +318,7 @@ impl VoronoiFace {
     }
 
     /// Get the index of the generator on the _right_ of this face.
-    /// Returns `None` if if this is a boundary face (i.e. obtained by clipping a Voronoi cell with the simulation volume).
+    /// Returns `None` if if this is a boundary face (i.e. obtained by clipping a Voronoi cell with the _simulation volume_).
     pub fn right(&self) -> Option<usize> {
         self.right
     }
@@ -325,6 +336,12 @@ impl VoronoiFace {
     /// Get a normal vector to this face, pointing away from the _left_ generator.
     pub fn normal(&self) -> DVec3 {
         self.normal
+    }
+
+    /// Get the shift vector (if any) to apply to the generator to the right of this face to bring it to the reference frame of this face.
+    /// Can only be `Some` for periodic Voronoi tesselations.
+    pub fn shift(&self) -> Option<DVec3> {
+        self.shift
     }
 }
 
@@ -374,22 +391,52 @@ impl VoronoiCell {
             let (face_0, face_1, face_2) =
                 maybe_faces.get_3_mut(face_idx_0, face_idx_1, face_idx_2);
             // If the faces are None and we want to create a face, initialize it now.
-            match plane_0.right_idx {
-                Some(right_idx) if right_idx <= idx => (), // Don't construct faces twice
+            match plane_0 {
+                // Don't construct faces twice
+                HalfSpace {
+                    right_idx: Some(right_idx),
+                    shift: None,
+                    ..
+                } if *right_idx <= idx => (),
                 _ => {
-                    face_0.get_or_insert(VoronoiFace::init(idx, plane_0.right_idx, -plane_0.n));
+                    face_0.get_or_insert(VoronoiFace::init(
+                        idx,
+                        plane_0.right_idx,
+                        -plane_0.n,
+                        plane_0.shift,
+                    ));
                 }
             }
-            match plane_1.right_idx {
-                Some(right_idx) if right_idx <= idx => (), // Don't construct faces twice
+            match plane_1 {
+                // Don't construct faces twice
+                HalfSpace {
+                    right_idx: Some(right_idx),
+                    shift: None,
+                    ..
+                } if *right_idx <= idx => (),
                 _ => {
-                    face_1.get_or_insert(VoronoiFace::init(idx, plane_1.right_idx, -plane_1.n));
+                    face_1.get_or_insert(VoronoiFace::init(
+                        idx,
+                        plane_1.right_idx,
+                        -plane_1.n,
+                        plane_1.shift,
+                    ));
                 }
             }
-            match plane_2.right_idx {
-                Some(right_idx) if right_idx <= idx => (), // Don't construct faces twice
+            match plane_2 {
+                // Don't construct faces twice
+                HalfSpace {
+                    right_idx: Some(right_idx),
+                    shift: None,
+                    ..
+                } if *right_idx <= idx => (),
                 _ => {
-                    face_2.get_or_insert(VoronoiFace::init(idx, plane_2.right_idx, -plane_2.n));
+                    face_2.get_or_insert(VoronoiFace::init(
+                        idx,
+                        plane_2.right_idx,
+                        -plane_2.n,
+                        plane_2.shift,
+                    ));
                 }
             }
 
@@ -531,28 +578,40 @@ impl Voronoi {
     /// Construct the Voronoi tesselation. This method runs in parallel if the `"rayon"` feature is enabled.
     ///
     /// Iteratively construct each Voronoi cell independently of each other by repeatedly clipping it by the nearest generators until a safety criterion is reached.
-    /// All Voronoi cells are clipped by a simulation volume if necessary.
+    /// For non-periodic Voronoi tesselations, all Voronoi cells are clipped by the simulation volume with given `anchor` and `width` if necessary.
     ///
     /// * `generators` - The seed points of the Voronoi cells.
     /// * `anchor` - The lower left corner of the simulation volume.
-    /// * `width` - The width of the simulation volume.
+    /// * `width` - The width of the simulation volume. Also determines the period of periodic Voronoi tesselations.
     /// * `dimensionality` - The dimensionality of the Voronoi tesselation. The algorithm is mainly aimed at constructiong 3D Voronoi tesselations, but can be used for 1 or 2D as well.
-    pub fn build(generators: &[DVec3], anchor: DVec3, width: DVec3, dimensionality: usize) -> Self {
+    /// * `periodic` - Whether to apply periodic boundary conditions to the Voronoi tesselation.
+    pub fn build(
+        generators: &[DVec3],
+        anchor: DVec3,
+        width: DVec3,
+        dimensionality: usize,
+        periodic: bool,
+    ) -> Self {
         let dimensionality = dimensionality.into();
 
         // Normalize the unused components of the simulation volume, so that the lower dimensional volumes will be correct.
-        let mut anchor = anchor;
-        let mut width = width;
+        let mut this_anchor = anchor;
+        let mut this_width = width;
+        if periodic {
+            this_anchor -= width;
+            this_width *= 3.;
+        }
+
         match dimensionality {
             Dimensionality::Dimensionality1D => {
-                anchor.y = -0.5;
-                anchor.z = -0.5;
-                width.y = 1.;
-                width.z = 1.
+                this_anchor.y = -0.5;
+                this_anchor.z = -0.5;
+                this_width.y = 1.;
+                this_width.z = 1.
             }
             Dimensionality::Dimensionality2D => {
-                anchor.z = -0.5;
-                width.z = 1.;
+                this_anchor.z = -0.5;
+                this_width.z = 1.;
             }
             _ => (),
         }
@@ -571,9 +630,19 @@ impl Voronoi {
             .par_iter()
             .zip(faces.par_iter_mut())
             .map(|(generator, faces)| {
-                let mut convex_cell =
-                    ConvexCell::init(generator.loc, anchor, width, generator.id, dimensionality);
-                convex_cell.build(&generators, nn_iter(&rtree, generator.loc), dimensionality);
+                let mut convex_cell = ConvexCell::init(
+                    generator.loc,
+                    this_anchor,
+                    this_width,
+                    generator.id,
+                    dimensionality,
+                );
+                let nearest_neighbours = if periodic {
+                    wrapping_nn_iter(&rtree, generator.loc, width, dimensionality)
+                } else {
+                    nn_iter(&rtree, generator.loc)
+                };
+                convex_cell.build(&generators, nearest_neighbours, dimensionality);
                 VoronoiCell::from_convex_cell(&convex_cell, faces)
             })
             .collect();
@@ -582,16 +651,26 @@ impl Voronoi {
             .iter()
             .zip(faces.iter_mut())
             .map(|(generator, faces)| {
-                let mut convex_cell =
-                    ConvexCell::init(generator.loc, anchor, width, generator.id, dimensionality);
-                convex_cell.build(&generators, nn_iter(&rtree, generator.loc), dimensionality);
+                let mut convex_cell = ConvexCell::init(
+                    generator.loc,
+                    this_anchor,
+                    this_width,
+                    generator.id,
+                    dimensionality,
+                );
+                let nearest_neighbours = if periodic {
+                    wrapping_nn_iter(&rtree, generator.loc, width, dimensionality)
+                } else {
+                    nn_iter(&rtree, generator.loc)
+                };
+                convex_cell.build(&generators, nearest_neighbours, dimensionality);
                 VoronoiCell::from_convex_cell(&convex_cell, faces)
             })
             .collect();
 
         Voronoi {
-            anchor,
-            width,
+            anchor: this_anchor,
+            width: this_width,
             cells,
             faces: faces
                 .into_iter()
@@ -628,12 +707,12 @@ impl Voronoi {
         self
     }
 
-    /// The anchor of the simulation volume. All Voronoi cells are clipped by this simulation volume.
+    /// The anchor of the simulation volume. All generators are assumed to be contained in this simulation volume.
     pub fn anchor(&self) -> DVec3 {
         self.anchor
     }
 
-    /// The width of the simulation volume. All Voronoi cells are clipped by this simulation volume.
+    /// The width of the simulation volume. All generators are assumed to be contained in this simulation volume.
     pub fn width(&self) -> DVec3 {
         self.width
     }
