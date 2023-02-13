@@ -690,8 +690,14 @@ impl Voronoi {
 
         for (i, face) in self.faces.iter().enumerate() {
             cell_face_connections[face.left].push(i);
-            if let Some(right_idx) = face.right {
-                cell_face_connections[right_idx].push(i);
+            match face {
+                // Only add if non boundary face (periodic/box)
+                VoronoiFace {
+                    right: Some(right_idx),
+                    shift: None,
+                    ..
+                } => cell_face_connections[*right_idx].push(i),
+                _ => (),
             }
         }
 
