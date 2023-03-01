@@ -594,6 +594,27 @@ mod test {
     }
 
     #[test]
+    fn test_partial() {
+        let pert = 0.9;
+        let anchor = DVec3::ZERO;
+        let width = DVec3::splat(1.);
+        let generators = perturbed_grid(anchor, width, 3, pert);
+        let voronoi_all = Voronoi::build(&generators, anchor, width, DIM3D, false);
+        for i in 0..27 {
+            let mut mask = vec![false; 27];
+            mask[i] = true;
+            let voronoi_partial = Voronoi::build_partial(&generators, &mask, anchor, width, DIM3D, false);
+            for j in 0..27 {
+                if j == i {
+                    assert_approx_eq!(f64, voronoi_all.cells[j].volume(), voronoi_partial.cells[j].volume());
+                } else {
+                    assert_eq!(voronoi_partial.cells[j].volume(), 0.);
+                }
+            }
+        }
+    }
+
+    #[test]
     fn test_2_d() {
         let pert = 0.95;
         let count = 50;
