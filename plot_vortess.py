@@ -46,4 +46,4 @@ def main(fname):
 
 
 if __name__ == "__main__":
-    main("test.hdf5")
+    main("test_2_d.hdf5")

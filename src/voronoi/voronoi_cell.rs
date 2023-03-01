@@ -8,6 +8,7 @@ use crate::{
 
 use super::{Dimensionality, Generator};
 
+#[derive(Clone)]
 pub struct HalfSpace {
     pub n: DVec3,
     p: DVec3,
@@ -58,6 +59,7 @@ fn intersect_planes(p0: &HalfSpace, p1: &HalfSpace, p2: &HalfSpace) -> DVec3 {
         / det
 }
 
+#[derive(Clone)]
 pub struct Vertex {
     pub loc: DVec3,
     pub dual: (usize, usize, usize),
@@ -72,6 +74,7 @@ impl Vertex {
     }
 }
 
+#[derive(Clone)]
 pub struct ConvexCell {
     pub loc: DVec3,
     pub clipping_planes: Vec<HalfSpace>,
@@ -84,11 +87,37 @@ impl ConvexCell {
     /// Initialize each voronoi cell as the bounding box of the simulation volume.
     pub(super) fn init(
         loc: DVec3,
-        anchor: DVec3,
-        width: DVec3,
         idx: usize,
+        simulation_volume: &ConvexCell,
         dimensionality: Dimensionality,
     ) -> Self {
+        let mut cell = simulation_volume.clone();
+        cell.idx = idx;
+        cell.loc = loc;
+        cell.update_safety_radius(dimensionality);
+        cell
+    }
+
+    pub(super) fn init_simulation_volume(
+        mut anchor: DVec3,
+        mut width: DVec3,
+        periodic: bool,
+        dimensionality: Dimensionality,
+    ) -> Self {
+        if periodic {
+            anchor.x -= width.x;
+            width.x *= 3.;
+            if let Dimensionality::Dimensionality2D | Dimensionality::Dimensionality3D =
+                dimensionality
+            {
+                anchor.y -= width.y;
+                width.y *= 3.;
+            };
+            if let Dimensionality::Dimensionality3D = dimensionality {
+                anchor.z -= width.z;
+                width.z *= 3.;
+            }
+        }
         let clipping_planes = vec![
             HalfSpace::new(DVec3::X, anchor, None, None),
             HalfSpace::new(DVec3::NEG_X, anchor + width, None, None),
@@ -107,15 +136,13 @@ impl ConvexCell {
             Vertex::from_dual(2, 4, 1, &clipping_planes),
             Vertex::from_dual(4, 3, 1, &clipping_planes),
         ];
-        let mut cell = ConvexCell {
-            loc,
+        ConvexCell {
+            loc: DVec3::ZERO,
             clipping_planes,
             vertices,
             safety_radius: 0.,
-            idx,
-        };
-        cell.update_safety_radius(dimensionality);
-        cell
+            idx: 0,
+        }
     }
 
     /// Build the Convex cell by repeatedly intersecting it with the appropriate half spaces
@@ -241,7 +268,7 @@ impl ConvexCell {
 }
 
 /// A Voronoi cell.
-#[derive(Debug, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy)]
 pub struct VoronoiCell {
     loc: DVec3,
     centroid: DVec3,
@@ -440,15 +467,13 @@ mod test {
     const DIM3D: usize = 3;
 
     #[test]
-    fn test_init_voronoi_cell() {
+    fn test_init_simulation_volume() {
         let anchor = DVec3::splat(1.);
         let width = DVec3::splat(4.);
-        let loc = DVec3::splat(3.);
-        let cell = ConvexCell::init(loc, anchor, width, 0, DIM3D.into());
+        let cell = ConvexCell::init_simulation_volume(anchor, width, false, DIM3D.into());
 
         assert_eq!(cell.vertices.len(), 8);
         assert_eq!(cell.clipping_planes.len(), 6);
-        assert_eq!(cell.safety_radius, 2. * 12f64.sqrt())
     }
 
     #[test]
@@ -456,7 +481,8 @@ mod test {
         let anchor = DVec3::splat(1.);
         let width = DVec3::splat(2.);
         let loc = DVec3::splat(2.);
-        let mut cell = ConvexCell::init(loc, anchor, width, 0, DIM3D.into());
+        let volume = ConvexCell::init_simulation_volume(anchor, width, false, DIM3D.into());
+        let mut cell = ConvexCell::init(loc, 0, &volume, DIM3D.into());
 
         let ngb = DVec3::splat(2.5);
         let dx = cell.loc - ngb;

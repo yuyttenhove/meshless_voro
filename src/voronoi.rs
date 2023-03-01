@@ -1,6 +1,7 @@
 use glam::DVec3;
 #[cfg(feature = "rayon")]
 use rayon::prelude::*;
+use rstar::RTree;
 #[cfg(feature = "hdf5")]
 use std::error::Error;
 #[cfg(feature = "hdf5")]
@@ -62,6 +63,7 @@ impl Voronoi {
     /// For non-periodic Voronoi tesselations, all Voronoi cells are clipped by the simulation volume with given `anchor` and `width` if necessary.
     ///
     /// * `generators` - The seed points of the Voronoi cells.
+    /// * `mask` - If `Some`: The mask determining which Voronoi cells have to be fully constructed
     /// * `anchor` - The lower left corner of the simulation volume.
     /// * `width` - The width of the simulation volume. Also determines the period of periodic Voronoi tesselations.
     /// * `dimensionality` - The dimensionality of the Voronoi tesselation. The algorithm is mainly aimed at constructiong 3D Voronoi tesselations, but can be used for 1 or 2D as well.
@@ -73,28 +75,56 @@ impl Voronoi {
         dimensionality: usize,
         periodic: bool,
     ) -> Self {
+        Self::build_internal(generators, None, anchor, width, dimensionality, periodic)
+    }
+
+    /// Same as `build`, but now, only a subset of the voronoi cells is fully constructed.
+    /// The other voronoi cells will have 0 volume and centroid, but still might have some faces linked to them
+    /// (between them and other voronoi cells that _are_ fully constructed).
+    ///
+    /// * `generators` - The seed points of the Voronoi cells.
+    /// * `mask` - `True` Voronoi cells which have to be fully constructed.
+    /// * `anchor` - The lower left corner of the simulation volume.
+    /// * `width` - The width of the simulation volume. Also determines the period of periodic Voronoi tesselations.
+    /// * `dimensionality` - The dimensionality of the Voronoi tesselation. The algorithm is mainly aimed at constructiong 3D Voronoi tesselations, but can be used for 1 or 2D as well.
+    /// * `periodic` - Whether to apply periodic boundary conditions to the Voronoi tesselation.
+    pub fn build_partial(
+        generators: &[DVec3],
+        mask: &[bool],
+        anchor: DVec3,
+        width: DVec3,
+        dimensionality: usize,
+        periodic: bool,
+    ) -> Self {
+        Self::build_internal(
+            generators,
+            Some(mask),
+            anchor,
+            width,
+            dimensionality,
+            periodic,
+        )
+    }
+
+    fn build_internal(
+        generators: &[DVec3],
+        mask: Option<&[bool]>,
+        mut anchor: DVec3,
+        mut width: DVec3,
+        dimensionality: usize,
+        periodic: bool,
+    ) -> Self {
         let dimensionality = dimensionality.into();
 
         // Normalize the unused components of the simulation volume, so that the lower dimensional volumes will be correct.
-        let mut this_anchor = anchor;
-        let mut this_width = width;
-        if periodic {
-            this_anchor -= width;
-            this_width *= 3.;
-        }
-
-        match dimensionality {
-            Dimensionality::Dimensionality1D => {
-                this_anchor.y = -0.5;
-                this_anchor.z = -0.5;
-                this_width.y = 1.;
-                this_width.z = 1.
-            }
-            Dimensionality::Dimensionality2D => {
-                this_anchor.z = -0.5;
-                this_width.z = 1.;
-            }
-            _ => (),
+        if let Dimensionality::Dimensionality1D = dimensionality
+        {
+            anchor.y = -0.5;
+            width.y = 1.;
+        };
+        if let Dimensionality::Dimensionality1D | Dimensionality::Dimensionality2D = dimensionality {
+            anchor.z = -0.5;
+            width.z = 1.;
         }
 
         let generators: Vec<Generator> = generators
@@ -104,54 +134,77 @@ impl Voronoi {
             .collect();
 
         let rtree = build_rtree(&generators);
+        let simulation_volume =
+            ConvexCell::init_simulation_volume(anchor, width, periodic, dimensionality);
+
+        fn maybe_build_cell(
+            idx: usize,
+            generators: &[Generator],
+            mask: Option<&[bool]>,
+            faces: &mut Vec<VoronoiFace>,
+            rtree: &RTree<Generator>,
+            simulation_volume: &ConvexCell,
+            width: DVec3,
+            dimensionality: Dimensionality,
+            periodic: bool,
+        ) -> VoronoiCell {
+            if mask.map_or(true, |mask| mask[idx]) {
+                let loc = generators[idx].loc();
+                debug_assert_eq!(generators[idx].id(), idx);
+                let mut convex_cell = ConvexCell::init(loc, idx, simulation_volume, dimensionality);
+                let nearest_neighbours = if periodic {
+                    wrapping_nn_iter(&rtree, loc, width, dimensionality)
+                } else {
+                    nn_iter(&rtree, loc)
+                };
+                convex_cell.build(&generators, nearest_neighbours, dimensionality);
+                VoronoiCell::from_convex_cell(&convex_cell, faces)
+            } else {
+                VoronoiCell::default()
+            }
+        }
 
         let mut faces: Vec<Vec<VoronoiFace>> = generators.iter().map(|_| vec![]).collect();
         #[cfg(feature = "rayon")]
-        let cells = generators
-            .par_iter()
-            .zip(faces.par_iter_mut())
-            .map(|(generator, faces)| {
-                let mut convex_cell = ConvexCell::init(
-                    generator.loc(),
-                    this_anchor,
-                    this_width,
-                    generator.id(),
+        let cells = faces
+            .par_iter_mut()
+            .enumerate()
+            .map(|(idx, faces)| {
+                maybe_build_cell(
+                    idx,
+                    &generators,
+                    mask,
+                    faces,
+                    &rtree,
+                    &simulation_volume,
+                    width,
                     dimensionality,
-                );
-                let nearest_neighbours = if periodic {
-                    wrapping_nn_iter(&rtree, generator.loc(), width, dimensionality)
-                } else {
-                    nn_iter(&rtree, generator.loc())
-                };
-                convex_cell.build(&generators, nearest_neighbours, dimensionality);
-                VoronoiCell::from_convex_cell(&convex_cell, faces)
+                    periodic,
+                )
             })
             .collect();
         #[cfg(not(feature = "rayon"))]
-        let cells = generators
-            .iter()
-            .zip(faces.iter_mut())
-            .map(|(generator, faces)| {
-                let mut convex_cell = ConvexCell::init(
-                    generator.loc(),
-                    this_anchor,
-                    this_width,
-                    generator.id(),
+        let cells = faces
+            .iter_mut()
+            .enumerate()
+            .map(|(idx, faces)| {
+                maybe_build_cell(
+                    idx,
+                    &generators,
+                    mask,
+                    faces,
+                    &rtree,
+                    &simulation_volume,
+                    width,
                     dimensionality,
-                );
-                let nearest_neighbours = if periodic {
-                    wrapping_nn_iter(&rtree, generator.loc(), width, dimensionality)
-                } else {
-                    nn_iter(&rtree, generator.loc())
-                };
-                convex_cell.build(&generators, nearest_neighbours, dimensionality);
-                VoronoiCell::from_convex_cell(&convex_cell, faces)
+                    periodic,
+                )
             })
             .collect();
 
         Voronoi {
-            anchor: this_anchor,
-            width: this_width,
+            anchor,
+            width,
             cells,
             faces: faces
                 .into_iter()
@@ -222,7 +275,7 @@ impl Voronoi {
         self.dimensionality.into()
     }
 
-    /// Save the Voronoi tesselation to a hdf5 file.
+    /// Save the Voronoi tesselation to a hdf5 file. Requires the `hdf5` feature to be enabled.
     #[cfg(feature = "hdf5")]
     pub fn save<P: AsRef<Path>>(&self, filename: P) -> Result<(), Box<dyn Error>> {
         // Create the file to write the data to
@@ -448,6 +501,8 @@ mod test {
             z: 1.,
         };
         let voronoi = Voronoi::build(&generators, anchor, width, DIM2D, true);
+        #[cfg(feature = "hdf5")]
+        voronoi.save("test_4_cells.hdf5").unwrap();
         assert_approx_eq!(f64, voronoi.cells.iter().map(|c| c.volume()).sum(), 2.);
     }
 
@@ -552,7 +607,7 @@ mod test {
         let voronoi = Voronoi::build(&generators, anchor, width, DIM2D, true);
 
         #[cfg(feature = "hdf5")]
-        voronoi.save("test.hdf5").unwrap();
+        voronoi.save("test_2_d.hdf5").unwrap();
 
         assert_approx_eq!(
             f64,
