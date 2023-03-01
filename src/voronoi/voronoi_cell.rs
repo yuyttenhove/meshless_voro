@@ -291,7 +291,11 @@ impl VoronoiCell {
     /// Build a Voronoi cell from a ConvexCell by computing the relevant integrals.
     ///
     /// Any Voronoi faces that are created by the construction of this cell are stored in the `faces` vector.
-    pub fn from_convex_cell(convex_cell: &ConvexCell, faces: &mut Vec<VoronoiFace>) -> Self {
+    pub fn from_convex_cell(
+        convex_cell: &ConvexCell,
+        faces: &mut Vec<VoronoiFace>,
+        mask: Option<&[bool]>,
+    ) -> Self {
         let idx = convex_cell.idx;
         let loc = convex_cell.loc;
         let mut centroid = DVec3::ZERO;
@@ -300,6 +304,30 @@ impl VoronoiCell {
         let mut maybe_faces: Vec<Option<VoronoiFace>> = (0..convex_cell.clipping_planes.len())
             .map(|_| None)
             .collect();
+
+        fn maybe_init_face(
+            maybe_face: &mut Option<VoronoiFace>,
+            plane: &HalfSpace,
+            left_idx: usize,
+            mask: Option<&[bool]>,
+        ) {
+            match plane {
+                // Don't construct faces twice.
+                HalfSpace {
+                    right_idx: Some(right_idx),
+                    shift: None,
+                    ..
+                } if *right_idx <= left_idx && mask.map_or(true, |mask| mask[*right_idx]) => (),
+                _ => {
+                    maybe_face.get_or_insert(VoronoiFace::init(
+                        left_idx,
+                        plane.right_idx,
+                        -plane.n,
+                        plane.shift,
+                    ));
+                }
+            }
+        }
 
         // Loop over vertices and compute the necessary integrals/barycenter calculations
         for vertex in &convex_cell.vertices {
@@ -312,55 +340,9 @@ impl VoronoiCell {
             let plane_2 = &convex_cell.clipping_planes[face_idx_2];
             let (face_0, face_1, face_2) =
                 maybe_faces.get_3_mut(face_idx_0, face_idx_1, face_idx_2);
-            // If the faces are None and we want to create a face, initialize it now.
-            match plane_0 {
-                // Don't construct faces twice
-                HalfSpace {
-                    right_idx: Some(right_idx),
-                    shift: None,
-                    ..
-                } if *right_idx <= idx => (),
-                _ => {
-                    face_0.get_or_insert(VoronoiFace::init(
-                        idx,
-                        plane_0.right_idx,
-                        -plane_0.n,
-                        plane_0.shift,
-                    ));
-                }
-            }
-            match plane_1 {
-                // Don't construct faces twice
-                HalfSpace {
-                    right_idx: Some(right_idx),
-                    shift: None,
-                    ..
-                } if *right_idx <= idx => (),
-                _ => {
-                    face_1.get_or_insert(VoronoiFace::init(
-                        idx,
-                        plane_1.right_idx,
-                        -plane_1.n,
-                        plane_1.shift,
-                    ));
-                }
-            }
-            match plane_2 {
-                // Don't construct faces twice
-                HalfSpace {
-                    right_idx: Some(right_idx),
-                    shift: None,
-                    ..
-                } if *right_idx <= idx => (),
-                _ => {
-                    face_2.get_or_insert(VoronoiFace::init(
-                        idx,
-                        plane_2.right_idx,
-                        -plane_2.n,
-                        plane_2.shift,
-                    ));
-                }
-            }
+            maybe_init_face(face_0, plane_0, idx, mask);
+            maybe_init_face(face_1, plane_1, idx, mask);
+            maybe_init_face(face_2, plane_2, idx, mask);
 
             // Project generator on planes
             let g_on_p0 = plane_0.project_onto(loc);

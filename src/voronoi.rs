@@ -158,7 +158,7 @@ impl Voronoi {
                     nn_iter(&rtree, loc)
                 };
                 convex_cell.build(&generators, nearest_neighbours, dimensionality);
-                VoronoiCell::from_convex_cell(&convex_cell, faces)
+                VoronoiCell::from_convex_cell(&convex_cell, faces, mask)
             } else {
                 VoronoiCell::default()
             }
@@ -607,6 +607,7 @@ mod test {
             for j in 0..27 {
                 if j == i {
                     assert_approx_eq!(f64, voronoi_all.cells[j].volume(), voronoi_partial.cells[j].volume());
+                    assert_eq!(voronoi_all.cells[j].face_count(), voronoi_partial.cells[j].face_count());
                 } else {
                     assert_eq!(voronoi_partial.cells[j].volume(), 0.);
                 }
