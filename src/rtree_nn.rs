@@ -5,7 +5,7 @@ use rstar::{Envelope, ParentNode, Point, PointDistance, RTree, RTreeNode, RTreeO
 
 use crate::voronoi::{Dimensionality, Generator};
 
-pub fn build_rtree(generators: &[Generator]) -> RTree<Generator> {
+pub(crate) fn build_rtree(generators: &[Generator]) -> RTree<Generator> {
     RTree::bulk_load(generators.to_vec())
 }
 
@@ -20,7 +20,7 @@ pub fn nn_iter<'a>(
     )
 }
 
-pub fn wrapping_nn_iter<'a>(
+pub(crate) fn wrapping_nn_iter<'a>(
     rtree: &'a RTree<Generator>,
     loc: DVec3,
     width: DVec3,

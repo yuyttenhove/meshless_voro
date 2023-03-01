@@ -2,30 +2,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
 from pathlib import Path
+import h5py
 
 
 def read_faces(fname: Path) -> np.ndarray:
-    data = np.fromregex(
-        file = fname, 
-        regexp = "(\S+)\s+\((\S+), (\S+)\)\s+\((\S+), (\S+)\)", 
-        dtype = [
-            ("area", np.float64), 
-            ("mx", np.float64), 
-            ("my", np.float64), 
-            ("nx", np.float64), 
-            ("ny", np.float64), 
-        ])
-    faces = []
-    for row in data:
-        normal = np.array([row["nx"], row["ny"], 0])
-        normal /= np.sqrt(normal.T.dot(normal))
-        ort = np.array([normal[1], -normal[0], 0])
-        midpoint = np.array([row["mx"], row["my"], 0])
-        length = row["area"]
-        a = midpoint + 0.5 * length * ort
-        b = midpoint - 0.5 * length * ort
-        faces.append(np.stack([a, b])[:, :2])
-    return faces
+    data = h5py.File(fname, "r")
+    start = data["Faces/Start"][:][:, :2]
+    end = data["Faces/End"][:][:, :2]
+    return np.stack([start, end], axis=1)
 
 
 def plot(faces: np.ndarray):
@@ -41,7 +25,7 @@ def plot(faces: np.ndarray):
 
 
 def main():
-    faces = read_faces("faces.txt")
+    faces = read_faces("test.hdf5")
     plot(faces)
 
 

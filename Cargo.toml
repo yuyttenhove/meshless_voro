@@ -15,9 +15,11 @@ exclude = ["plot_vortess.py"]
 glam = "0.22"
 rstar = "0.9.3"
 rayon = { version = "1.6.1", optional = true }
+hdf5 = { version = "0.8.1", optional = true }
 
 [features]
 rayon = ["dep:rayon"]
+hdf5 = ["dep:hdf5"]
 
 [dev-dependencies]
 rand = "0.8"
