@@ -117,12 +117,12 @@ impl Voronoi {
         let dimensionality = dimensionality.into();
 
         // Normalize the unused components of the simulation volume, so that the lower dimensional volumes will be correct.
-        if let Dimensionality::Dimensionality1D = dimensionality
-        {
+        if let Dimensionality::Dimensionality1D = dimensionality {
             anchor.y = -0.5;
             width.y = 1.;
         };
-        if let Dimensionality::Dimensionality1D | Dimensionality::Dimensionality2D = dimensionality {
+        if let Dimensionality::Dimensionality1D | Dimensionality::Dimensionality2D = dimensionality
+        {
             anchor.z = -0.5;
             width.z = 1.;
         }
@@ -603,11 +603,19 @@ mod test {
         for i in 0..27 {
             let mut mask = vec![false; 27];
             mask[i] = true;
-            let voronoi_partial = Voronoi::build_partial(&generators, &mask, anchor, width, DIM3D, false);
+            let voronoi_partial =
+                Voronoi::build_partial(&generators, &mask, anchor, width, DIM3D, false);
             for j in 0..27 {
                 if j == i {
-                    assert_approx_eq!(f64, voronoi_all.cells[j].volume(), voronoi_partial.cells[j].volume());
-                    assert_eq!(voronoi_all.cells[j].face_count(), voronoi_partial.cells[j].face_count());
+                    assert_approx_eq!(
+                        f64,
+                        voronoi_all.cells[j].volume(),
+                        voronoi_partial.cells[j].volume()
+                    );
+                    assert_eq!(
+                        voronoi_all.cells[j].face_count(),
+                        voronoi_partial.cells[j].face_count()
+                    );
                 } else {
                     assert_eq!(voronoi_partial.cells[j].volume(), 0.);
                 }
@@ -642,8 +650,8 @@ mod test {
 
     #[test]
     fn test_3_d() {
-        let pert = 0.5;
-        let count = 30;
+        let pert = 1.;
+        let count = 100;
         let anchor = DVec3::ZERO;
         let width = DVec3::splat(2.);
         let generators = perturbed_grid(anchor, width, count, pert);

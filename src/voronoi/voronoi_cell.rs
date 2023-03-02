@@ -1,17 +1,17 @@
-use glam::{DMat3, DVec3};
+use glam::DVec3;
 
 use crate::{
+    geometry::{intersect_planes, Plane, Sphere},
     simple_cycle::SimpleCycle,
     util::{signed_volume_tet, GetMutMultiple},
-    Voronoi, VoronoiFace,
+    Voronoi, VoronoiFace, bounding_sphere::{BoundingSphereSolver, EPOS6},
 };
 
 use super::{Dimensionality, Generator};
 
 #[derive(Clone)]
 pub struct HalfSpace {
-    pub n: DVec3,
-    p: DVec3,
+    plane: Plane,
     d: f64,
     pub right_idx: Option<usize>,
     pub shift: Option<DVec3>,
@@ -20,8 +20,7 @@ pub struct HalfSpace {
 impl HalfSpace {
     fn new(n: DVec3, p: DVec3, right_idx: Option<usize>, shift: Option<DVec3>) -> Self {
         HalfSpace {
-            n,
-            p,
+            plane: Plane::new(n, p),
             d: n.dot(p),
             right_idx,
             shift,
@@ -30,33 +29,8 @@ impl HalfSpace {
 
     /// Whether a vertex is clipped by this half space
     fn clips(&self, vertex: DVec3) -> bool {
-        self.n.dot(vertex) < self.d
+        self.plane.n.dot(vertex) < self.d
     }
-
-    pub fn project_onto(&self, vertex: DVec3) -> DVec3 {
-        vertex + (self.p - vertex).project_onto(self.n)
-    }
-
-    /// Project the a vertex on the intersection of two planes.
-    pub fn project_onto_intersection(&self, other: &Self, vertex: DVec3) -> DVec3 {
-        // first create a plane through the point perpendicular to both planes
-        let p_perp = HalfSpace::new(self.n.cross(other.n), vertex, None, None);
-
-        // The projection is the intersection of the planes self, other and p_perp
-        intersect_planes(self, other, &p_perp)
-    }
-}
-
-/// Calculate the intersection of 3 planes.
-/// see: https://mathworld.wolfram.com/Plane-PlaneIntersection.html
-fn intersect_planes(p0: &HalfSpace, p1: &HalfSpace, p2: &HalfSpace) -> DVec3 {
-    let det = DMat3::from_cols(p0.n, p1.n, p2.n).determinant();
-    assert!(det != 0., "Degenerate 3-plane intersection!");
-
-    (p0.p.dot(p0.n) * p1.n.cross(p2.n)
-        + p1.p.dot(p1.n) * p2.n.cross(p0.n)
-        + p2.p.dot(p2.n) * p0.n.cross(p1.n))
-        / det
 }
 
 #[derive(Clone)]
@@ -66,9 +40,13 @@ pub struct Vertex {
 }
 
 impl Vertex {
-    fn from_dual(i: usize, j: usize, k: usize, planes: &[HalfSpace]) -> Self {
+    fn from_dual(i: usize, j: usize, k: usize, half_spaces: &[HalfSpace]) -> Self {
         Vertex {
-            loc: intersect_planes(&planes[i], &planes[j], &planes[k]),
+            loc: intersect_planes(
+                &half_spaces[i].plane,
+                &half_spaces[j].plane,
+                &half_spaces[k].plane,
+            ),
             dual: (i, j, k),
         }
     }
@@ -80,6 +58,7 @@ pub struct ConvexCell {
     pub clipping_planes: Vec<HalfSpace>,
     pub vertices: Vec<Vertex>,
     safety_radius: f64,
+    bounding_sphere: Sphere,
     pub idx: usize,
 }
 
@@ -141,6 +120,7 @@ impl ConvexCell {
             clipping_planes,
             vertices,
             safety_radius: 0.,
+            bounding_sphere: Sphere::EMPTY,
             idx: 0,
         }
     }
@@ -183,6 +163,11 @@ impl ConvexCell {
     }
 
     fn clip_by_plane(&mut self, p: HalfSpace, dimensionality: Dimensionality) {
+        // Is the bounding sphere clipped?
+        if !p.plane.intersects_sphere(&self.bounding_sphere) {
+            // Nothing to do here.
+            return;
+        }
         // loop over vertices and remove the ones clipped by p
         let mut i = 0;
         let mut num_v = self.vertices.len();
@@ -249,9 +234,8 @@ impl ConvexCell {
     }
 
     fn update_safety_radius(&mut self, dimensionality: Dimensionality) {
-        let mut max_dist_2 = 0f64;
-        for vertex in self.vertices.iter() {
-            let mut v_loc = vertex.loc;
+        let vertex_positions = self.vertices.iter().map(|v| {
+            let mut v_loc = v.loc;
             // Ignore the unused dimensions fo the safety radius!
             match dimensionality {
                 Dimensionality::Dimensionality1D => {
@@ -261,9 +245,18 @@ impl ConvexCell {
                 Dimensionality::Dimensionality2D => v_loc.z = self.loc.z,
                 _ => (),
             }
-            max_dist_2 = max_dist_2.max(self.loc.distance_squared(v_loc));
+            v_loc
+        }).collect::<Vec<_>>();
+
+        // Update safety radius
+        let mut max_dist_2 = 0f64;
+        for loc in vertex_positions.iter() {
+            max_dist_2 = max_dist_2.max(self.loc.distance_squared(*loc));
         }
         self.safety_radius = 2. * max_dist_2.sqrt();
+
+        // Update bounding sphere
+        self.bounding_sphere = EPOS6::bounding_sphere(&vertex_positions);
     }
 }
 
@@ -307,11 +300,11 @@ impl VoronoiCell {
 
         fn maybe_init_face(
             maybe_face: &mut Option<VoronoiFace>,
-            plane: &HalfSpace,
+            half_space: &HalfSpace,
             left_idx: usize,
             mask: Option<&[bool]>,
         ) {
-            match plane {
+            match half_space {
                 // Don't construct faces twice.
                 HalfSpace {
                     right_idx: Some(right_idx),
@@ -321,9 +314,9 @@ impl VoronoiCell {
                 _ => {
                     maybe_face.get_or_insert(VoronoiFace::init(
                         left_idx,
-                        plane.right_idx,
-                        -plane.n,
-                        plane.shift,
+                        half_space.right_idx,
+                        -half_space.plane.n,
+                        half_space.shift,
                     ));
                 }
             }
@@ -335,16 +328,19 @@ impl VoronoiCell {
             let face_idx_0 = vertex.dual.0;
             let face_idx_1 = vertex.dual.1;
             let face_idx_2 = vertex.dual.2;
-            let plane_0 = &convex_cell.clipping_planes[face_idx_0];
-            let plane_1 = &convex_cell.clipping_planes[face_idx_1];
-            let plane_2 = &convex_cell.clipping_planes[face_idx_2];
-            let (face_0, face_1, face_2) =
+            let half_space_0 = &convex_cell.clipping_planes[face_idx_0];
+            let half_space_1 = &convex_cell.clipping_planes[face_idx_1];
+            let half_space_2 = &convex_cell.clipping_planes[face_idx_2];
+            let (maybe_face_0, maybe_face_1, maybe_face_2) =
                 maybe_faces.get_3_mut(face_idx_0, face_idx_1, face_idx_2);
-            maybe_init_face(face_0, plane_0, idx, mask);
-            maybe_init_face(face_1, plane_1, idx, mask);
-            maybe_init_face(face_2, plane_2, idx, mask);
+            maybe_init_face(maybe_face_0, half_space_0, idx, mask);
+            maybe_init_face(maybe_face_1, half_space_1, idx, mask);
+            maybe_init_face(maybe_face_2, half_space_2, idx, mask);
 
             // Project generator on planes
+            let plane_0 = &half_space_0.plane;
+            let plane_1 = &half_space_1.plane;
+            let plane_2 = &half_space_2.plane;
             let g_on_p0 = plane_0.project_onto(loc);
             let g_on_p1 = plane_1.project_onto(loc);
             let g_on_p2 = plane_2.project_onto(loc);
@@ -354,7 +350,7 @@ impl VoronoiCell {
             let g_on_p02 = plane_0.project_onto_intersection(&plane_2, loc);
             let g_on_p12 = plane_1.project_onto_intersection(&plane_2, loc);
 
-            // Project generator on vertex between planes
+            // Project generator on vertex determined by planes
             let g_on_p012 = vertex.loc;
 
             // Calculate signed volumes of tetrahedra
@@ -376,15 +372,15 @@ impl VoronoiCell {
                     + v_212 * (g_on_p2 + g_on_p12 + g_on_p012 + loc));
 
             // Calculate the signed areas of the triangles on the faces and update their barycenters
-            face_0.as_mut().map(|f| {
+            maybe_face_0.as_mut().map(|f| {
                 f.extend(g_on_p012, g_on_p01, g_on_p0, loc);
                 f.extend(g_on_p012, g_on_p0, g_on_p02, loc);
             });
-            face_1.as_mut().map(|f| {
+            maybe_face_1.as_mut().map(|f| {
                 f.extend(g_on_p012, g_on_p1, g_on_p01, loc);
                 f.extend(g_on_p012, g_on_p12, g_on_p1, loc);
             });
-            face_2.as_mut().map(|f| {
+            maybe_face_2.as_mut().map(|f| {
                 f.extend(g_on_p012, g_on_p02, g_on_p2, loc);
                 f.extend(g_on_p012, g_on_p2, g_on_p12, loc);
             });

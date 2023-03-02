@@ -4,6 +4,8 @@
 //! Like Voro++, this algorithm is _meshless_ implying that no global geometry is constructed. Instead a cell based approach is used and we only compute integrals (cell/face volumes and centroids) and connectivity information (it is possible to determine a cell's neighbours).
 //! The algorithm can generate Voronoi tesselations with a rectangular boundary or periodic boundary conditions and also supports computing a subset of the Voronoi tesselation.
 
+mod bounding_sphere;
+mod geometry;
 mod part;
 mod rtree_nn;
 mod simple_cycle;

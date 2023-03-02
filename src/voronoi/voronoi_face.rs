@@ -15,7 +15,12 @@ pub struct VoronoiFace {
 }
 
 impl VoronoiFace {
-    pub(super) fn init(left: usize, right: Option<usize>, normal: DVec3, shift: Option<DVec3>) -> Self {
+    pub(super) fn init(
+        left: usize,
+        right: Option<usize>,
+        normal: DVec3,
+        shift: Option<DVec3>,
+    ) -> Self {
         VoronoiFace {
             left,
             right,
