@@ -26,8 +26,19 @@ impl Plane {
         intersect_planes(self, other, &p_perp)
     }
 
+    #[allow(dead_code)]
     pub fn intersects_sphere(&self, sphere: &Sphere) -> bool {
         sphere.contains(self.project_onto(sphere.center))
+    }
+
+    #[allow(dead_code)]
+    pub fn intersects_aabb(&self, aabb: &AABB) -> bool {
+        // interval radius of projection of AABB on planes normal
+        let r = self.n.abs().dot(aabb.extent);
+        // distance from box center to plane
+        let d = (self.p - aabb.center).dot(self.n).abs();
+
+        return d <= r * (1. + 1e-10);
     }
 }
 
@@ -144,7 +155,48 @@ impl Sphere {
     }
 
     pub fn contains(&self, x: DVec3) -> bool {
-        self.radius > 0. && x.distance_squared(self.center) <= self.radius * self.radius * (1. + 1e-10)
+        self.radius > 0.
+            && x.distance_squared(self.center) <= self.radius * self.radius * (1. + 1e-10)
+    }
+}
+
+#[derive(Clone)]
+#[allow(dead_code)]
+pub(crate) struct AABB {
+    min: DVec3,
+    max: DVec3,
+    center: DVec3,
+    extent: DVec3,
+}
+
+#[allow(dead_code)]
+impl AABB {
+    pub const EMPTY: Self = Self {
+        min: DVec3::ZERO,
+        max: DVec3::ZERO,
+        center: DVec3::ZERO,
+        extent: DVec3::ZERO,
+    };
+
+    pub fn new(min: DVec3, max: DVec3) -> Self {
+        let center = 0.5 * (min + max);
+        let extent = max - center;
+        AABB {
+            min,
+            max,
+            center,
+            extent,
+        }
+    }
+
+    pub fn from_points(points: &[DVec3]) -> Self {
+        let mut min = DVec3::splat(f64::INFINITY);
+        let mut max = DVec3::splat(f64::NEG_INFINITY);
+        for point in points {
+            min = min.min(*point);
+            max = max.max(*point);
+        }
+        Self::new(min, max)
     }
 }
 
@@ -152,7 +204,7 @@ impl Sphere {
 mod test {
     use glam::DVec3;
 
-    use super::Sphere;
+    use super::{Plane, Sphere, AABB};
 
     #[test]
     fn test_sphere_two_points() {
@@ -199,5 +251,44 @@ mod test {
         assert_eq!(sphere.center.x, 0.5);
         assert_eq!(sphere.center.y, 0.);
         assert_eq!(sphere.center.z, 0.);
+    }
+
+    #[test]
+    fn test_sphere_plane_intersection() {
+        let sphere = Sphere::new(DVec3::ONE, 1.5);
+        let n = DVec3 {
+            x: 1.,
+            y: 0.5,
+            z: 0.1,
+        }
+        .normalize();
+        let plane = Plane::new(
+            n,
+            DVec3 {
+                x: 2.5,
+                y: 2.,
+                z: 0.,
+            },
+        );
+        assert!(!plane.intersects_sphere(&sphere));
+        let plane = Plane::new(
+            n,
+            DVec3 {
+                x: 1.,
+                y: 1.,
+                z: 0.,
+            },
+        );
+        assert!(plane.intersects_sphere(&sphere));
+    }
+
+    #[test]
+    fn test_aabb_plane_intersection() {
+        let aabb = AABB::new(DVec3::NEG_ONE, DVec3::X);
+        let n = DVec3 { x: 1., y: 2., z: 1. }.normalize();
+        let plane = Plane::new(n, DVec3 { x: 1.1, y: 0., z: 0. });
+        assert!(!plane.intersects_aabb(&aabb));
+        let plane = Plane::new(n, DVec3 { x: 0.9, y: 0., z: 0. });
+        assert!(plane.intersects_aabb(&aabb));
     }
 }

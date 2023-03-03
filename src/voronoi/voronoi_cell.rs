@@ -1,10 +1,10 @@
 use glam::DVec3;
 
 use crate::{
-    geometry::{intersect_planes, Plane, Sphere},
+    geometry::{intersect_planes, Plane},
     simple_cycle::SimpleCycle,
     util::{signed_volume_tet, GetMutMultiple},
-    Voronoi, VoronoiFace, bounding_sphere::{BoundingSphereSolver, EPOS6},
+    Voronoi, VoronoiFace,
 };
 
 use super::{Dimensionality, Generator};
@@ -58,7 +58,6 @@ pub struct ConvexCell {
     pub clipping_planes: Vec<HalfSpace>,
     pub vertices: Vec<Vertex>,
     safety_radius: f64,
-    bounding_sphere: Sphere,
     pub idx: usize,
 }
 
@@ -120,7 +119,6 @@ impl ConvexCell {
             clipping_planes,
             vertices,
             safety_radius: 0.,
-            bounding_sphere: Sphere::EMPTY,
             idx: 0,
         }
     }
@@ -163,11 +161,6 @@ impl ConvexCell {
     }
 
     fn clip_by_plane(&mut self, p: HalfSpace, dimensionality: Dimensionality) {
-        // Is the bounding sphere clipped?
-        if !p.plane.intersects_sphere(&self.bounding_sphere) {
-            // Nothing to do here.
-            return;
-        }
         // loop over vertices and remove the ones clipped by p
         let mut i = 0;
         let mut num_v = self.vertices.len();
@@ -234,29 +227,27 @@ impl ConvexCell {
     }
 
     fn update_safety_radius(&mut self, dimensionality: Dimensionality) {
-        let vertex_positions = self.vertices.iter().map(|v| {
-            let mut v_loc = v.loc;
-            // Ignore the unused dimensions fo the safety radius!
-            match dimensionality {
-                Dimensionality::Dimensionality1D => {
-                    v_loc.y = self.loc.y;
-                    v_loc.z = self.loc.z;
+        let max_dist_2 = self
+            .vertices
+            .iter()
+            .map(|v| {
+                let mut v_loc = v.loc;
+                // Ignore the unused dimensions fo the safety radius!
+                match dimensionality {
+                    Dimensionality::Dimensionality1D => {
+                        v_loc.y = self.loc.y;
+                        v_loc.z = self.loc.z;
+                    }
+                    Dimensionality::Dimensionality2D => v_loc.z = self.loc.z,
+                    _ => (),
                 }
-                Dimensionality::Dimensionality2D => v_loc.z = self.loc.z,
-                _ => (),
-            }
-            v_loc
-        }).collect::<Vec<_>>();
+                self.loc.distance_squared(v_loc)
+            })
+            .max_by(|a, b| a.partial_cmp(b).expect("NaN distance encountered!"))
+            .expect("Vertices cannot be empty!");
 
         // Update safety radius
-        let mut max_dist_2 = 0f64;
-        for loc in vertex_positions.iter() {
-            max_dist_2 = max_dist_2.max(self.loc.distance_squared(*loc));
-        }
         self.safety_radius = 2. * max_dist_2.sqrt();
-
-        // Update bounding sphere
-        self.bounding_sphere = EPOS6::bounding_sphere(&vertex_positions);
     }
 }
 

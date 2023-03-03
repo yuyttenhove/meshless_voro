@@ -405,15 +405,14 @@ mod test {
             let i = n / count.pow(2);
             let j = (n % count.pow(2)) / count;
             let k = n % count;
-            generators.push(
-                DVec3 {
-                    x: i as f64 + 0.5 + pert * rng.sample(distr),
-                    y: j as f64 + 0.5 + pert * rng.sample(distr),
-                    z: k as f64 + 0.5 + pert * rng.sample(distr),
-                } * width
-                    / count as f64
-                    + anchor,
-            );
+            let pos = DVec3 {
+                x: i as f64 + 0.5 + pert * rng.sample(distr),
+                y: j as f64 + 0.5 + pert * rng.sample(distr),
+                z: k as f64 + 0.5 + pert * rng.sample(distr),
+            } * width
+                / count as f64
+                + anchor;
+            generators.push(pos.clamp(anchor, anchor + width));
         }
 
         generators
@@ -426,15 +425,14 @@ mod test {
         for n in 0..count.pow(2) {
             let i = n / count;
             let j = n % count;
-            generators.push(
-                DVec3 {
-                    x: i as f64 + 0.5 + pert * rng.sample(distr),
-                    y: j as f64 + 0.5 + pert * rng.sample(distr),
-                    z: 0.5 * count as f64,
-                } * width
-                    / count as f64
-                    + anchor,
-            );
+            let pos = DVec3 {
+                x: i as f64 + 0.5 + pert * rng.sample(distr),
+                y: j as f64 + 0.5 + pert * rng.sample(distr),
+                z: 0.5 * count as f64,
+            } * width
+                / count as f64
+                + anchor;
+            generators.push(pos.clamp(anchor, anchor + width));
         }
 
         generators
@@ -625,7 +623,7 @@ mod test {
 
     #[test]
     fn test_2_d() {
-        let pert = 0.95;
+        let pert = 3.;
         let count = 25;
         let anchor = DVec3::splat(2.);
         let width = DVec3 {
@@ -650,7 +648,7 @@ mod test {
 
     #[test]
     fn test_3_d() {
-        let pert = 1.;
+        let pert = 4.;
         let count = 100;
         let anchor = DVec3::ZERO;
         let width = DVec3::splat(2.);
@@ -659,5 +657,39 @@ mod test {
         let total_volume: f64 = voronoi.cells.iter().map(|c| c.volume()).sum();
         assert_eq!(voronoi.cells.len(), generators.len());
         assert_approx_eq!(f64, total_volume, 8., epsilon = 1e-10, ulps = 8);
+    }
+
+    #[test]
+    fn test_density_grad_2_d() {
+        let pert = 1.;
+        let counts = [10, 40, 20, 80];
+        let anchor = DVec3::ZERO;
+        let width = DVec3::ONE;
+        let anchor_delta = DVec3 {
+            x: 0.25,
+            y: 0.,
+            z: 0.,
+        };
+        let width_part = DVec3 {
+            x: 0.25,
+            y: 1.,
+            z: 1.,
+        };
+        let mut plane = vec![];
+        for i in 0..4 {
+            plane.extend(perturbed_plane(
+                anchor + i as f64 * anchor_delta,
+                width_part,
+                counts[i],
+                pert,
+            ));
+        }
+        let voronoi = Voronoi::build(&plane, anchor, width, DIM2D, true);
+        #[cfg(feature = "hdf5")]
+        voronoi.save("test_density_grad_2_d.hdf5").unwrap();
+
+        let total_volume: f64 = voronoi.cells.iter().map(|c| c.volume()).sum();
+        assert_eq!(voronoi.cells.len(), plane.len());
+        assert_approx_eq!(f64, total_volume, 1., epsilon = 1e-10, ulps = 8);
     }
 }

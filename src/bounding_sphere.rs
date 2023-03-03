@@ -6,6 +6,7 @@ use crate::geometry::Sphere;
 
 pub(crate) trait BoundingSphereSolver {
     fn bounding_sphere(points: &[DVec3]) -> Sphere;
+    fn bounding_sphere_of_spheres(spheres: &[Sphere]) -> Sphere;
 }
 
 pub struct Welzl;
@@ -45,6 +46,11 @@ impl BoundingSphereSolver for Welzl {
         let mut points = points.to_vec();
         Self::bounding_sphere_recursive(&mut points, &mut boundary)
     }
+
+    fn bounding_sphere_of_spheres(_spheres: &[Sphere]) -> Sphere {
+        unimplemented!()
+    }
+    
 }
 
 pub(crate) struct EPOS6;
@@ -100,6 +106,44 @@ impl BoundingSphereSolver for EPOS6 {
 
         sphere
     }
+
+    fn bounding_sphere_of_spheres(spheres: &[Sphere]) -> Sphere {
+        let mut min = [f64::INFINITY; 3];
+        let mut max = [f64::NEG_INFINITY; 3];
+        let mut idx_min = [0; 3];
+        let mut idx_max = [0; 3];
+        for (idx, sphere) in spheres.iter().enumerate() {
+            for i in 0..3 {
+                let pmin = sphere.center[i] - sphere.radius;
+                if pmin < min[i] {
+                    min[i] = pmin;
+                    idx_min[i] = idx;
+                }
+                let pmax = sphere.center[i] + sphere.radius;
+                if pmax > max[i] {
+                    max[i] = pmax;
+                    idx_max[i] = idx;
+                }
+            }
+        }
+
+        // Get sphere from extremal points
+        let extremal_points = idx_min.into_iter().enumerate().map(|(i, idx)| { let mut p = spheres[idx].center; p[i] -= spheres[idx].radius; p}).chain(idx_min.into_iter().enumerate().map(|(i, idx)| { let mut p = spheres[idx].center; p[i] -= spheres[idx].radius; p})).collect::<Vec<_>>();
+        let mut bounding_sphere = Welzl::bounding_sphere(&extremal_points);
+
+        // Extend if necessary
+        for sphere in spheres {
+            let dist = sphere.center.distance(bounding_sphere.center);
+            let delta = 0.5 * (dist - bounding_sphere.radius + sphere.radius);
+            if delta > 0. {
+                bounding_sphere.radius += delta;
+                bounding_sphere.center -= delta * (bounding_sphere.center - sphere.center) / dist;
+            }
+        }
+
+        bounding_sphere
+    }
+    
 }
 
 #[cfg(test)]
