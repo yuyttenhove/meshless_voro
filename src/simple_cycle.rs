@@ -1,136 +1,105 @@
-use std::ops::{Deref, DerefMut, Index, IndexMut};
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct SimpleCycle<T> {
-    values: Vec<T>,
+#[derive(Clone)]
+pub struct SimpleCycle {
+    ptrs: Vec<usize>,
+    start: usize,
+    pub len: usize,
 }
 
-impl<T> Index<usize> for SimpleCycle<T> {
-    type Output = T;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.values[index % self.values.len()]
-    }
-}
-
-impl<T> IndexMut<usize> for SimpleCycle<T> {
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        &mut self.values[index]
-    }
-}
-
-impl<T> Deref for SimpleCycle<T> {
-    type Target = [T];
-
-    fn deref(&self) -> &Self::Target {
-        self.values.deref()
-    }
-}
-
-impl<T> DerefMut for SimpleCycle<T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.values.deref_mut()
-    }
-}
-
-impl<T> SimpleCycle<T> {
-    pub fn len(&self) -> usize {
-        self.values.len()
-    }
-
-    pub fn new(a: T, b: T, c: T) -> Self {
+impl SimpleCycle {
+    pub fn new(capacity: usize) -> Self {
         Self {
-            values: vec![a, b, c],
+            ptrs: (0..capacity).collect(),
+            start: 0,
+            len: 0,
         }
     }
 
-    #[cfg(test)]
-    fn from_vec(values: Vec<T>) -> Self {
-        Self { values }
-    }
+    pub fn grow(&mut self) {
+        self.ptrs.push(self.ptrs.len());
+    } 
 
-    pub fn push(&mut self, value: T) {
-        self.values.push(value);
-    }
-
-    pub fn insert(&mut self, index: usize, element: T) {
-        if index == self.len() {
-            self.push(element);
-        } else {
-            self.values.insert((index) % self.len(), element);
+    pub fn init(&mut self, a: usize, b: usize, c: usize) {
+        let mut current = self.start;
+        let mut next;
+        // reset the state of the cycle
+        for _ in 0..self.len {
+            next = self.ptrs[current];
+            self.ptrs[current] = current;
+            current = next;
         }
+        // init the cycle from a triangle
+        self.len = 3;
+        self.start = a;
+        self.ptrs[a] = b;
+        self.ptrs[b] = c;
+        self.ptrs[c] = a;
     }
 
-    pub fn remove(&mut self, index: usize) -> T {
-        self.values.remove(index % self.len())
+    fn contains(&self, idx: usize) -> bool {
+        self.ptrs[idx] != idx
+    }
+
+    pub fn try_extend(&mut self, a: usize, b: usize, c: usize) -> Result<(), ()> {
+        let tri = [a, b, c];
+        let contained = [self.contains(a), self.contains(b), self.contains(c)];
+        for i in 0..3 {
+            let j = (i + 1) % 3;
+            let k = (i + 2) % 3;
+
+            //      A                                       A
+            //     / \     +                     =         / \
+            //    B - C       - E - B - C - D -     - E - B   C - D -
+            if !contained[i] && contained[j] && contained[k] && self.ptrs[tri[k]] == tri[j] {
+                self.ptrs[tri[k]] = tri[i];
+                self.ptrs[tri[i]] = tri[j];
+                self.len += 1;
+                return Ok(());
+            }
+            //      A       - D - A             - D - A
+            //     / \   +       /           =         \
+            //    B - C         B - C - E -             C - E -
+            else if contained[i]
+                && contained[j]
+                && contained[k]
+                && self.ptrs[tri[k]] == tri[j]
+                && self.ptrs[tri[j]] == tri[i]
+            {
+                self.ptrs[tri[k]] = tri[i];
+                self.ptrs[tri[j]] = tri[j];
+                if self.start == tri[j] {
+                    self.start = tri[i];
+                }
+                self.len -= 1;
+                return Ok(())
+            }
+        }
+
+        Err(())
+    }
+
+    pub fn iter(&self) -> SimpleCycle2Iterator {
+        SimpleCycle2Iterator { simple_cycle: self, next: self.start }
     }
 }
 
-impl<T: Eq + Copy> SimpleCycle<T> {
-    pub fn is_valid(&self) -> bool {
-        for (i, v) in self.iter().enumerate() {
-            for (j, w) in self.iter().enumerate() {
-                if i != j && v == w {
-                    return false;
-                }
-            }
-        }
-        true
-    }
+pub struct SimpleCycle2Iterator<'a> {
+    simple_cycle: &'a SimpleCycle,
+    next: usize,
+}
 
-    /// Extend the boundary of a topological triangulated disk with a new triangle.
-    ///
-    /// Vertices of the boundary and of the new triangle are assumed to be ordered counterclockwise.
-    pub fn try_extend(&mut self, a: T, b: T, c: T) -> Result<(), ()> {
-        let tri = SimpleCycle::new(a, b, c);
+impl<'a> Iterator for SimpleCycle2Iterator<'a> {
+    type Item = usize;
 
-        // find matching vertices and disolvable edges
-        let mut disolvable_edges = vec![];
-        let mut num_matching_vertices = 0;
-        for i in 0..3 {
-            // look for this edge in self
-            for j in 0..self.len() {
-                if self[j + 1] == tri[i] && self[j] == tri[i + 1] {
-                    disolvable_edges.push((i, j));
-                }
-                if self[j] == tri[i] {
-                    num_matching_vertices += 1;
-                }
-            }
-        }
-
-        //      A                                       A
-        //     / \     +                     =         / \
-        //    B - C       - E - B - C - D -     - E - B   C - D -
-        if disolvable_edges.len() == 1 && num_matching_vertices == 2 {
-            let insertion_index = disolvable_edges[0].1 + 1;
-            let insertion_value = tri[disolvable_edges[0].0 + 2];
-            self.insert(insertion_index, insertion_value);
-            return Ok(());
-        }
-
-        //      A       - D - A             - D - A
-        //     / \   +       /           =         \
-        //    B - C         B - C - E -             C - E -
-        if disolvable_edges.len() == 2 && num_matching_vertices == 3 {
-            if disolvable_edges[1].1 == (disolvable_edges[0].1 + 1) % self.len() {
-                self.remove(disolvable_edges[1].1);
-                return Ok(());
-            }
-            if disolvable_edges[0].1 == (disolvable_edges[1].1 + 1) % self.len() {
-                self.remove(disolvable_edges[0].1);
-                return Ok(());
-            }
-        }
-
-        // Could not compute a valid simple cycle from the existing boundary and the new triangle
-        Err(())
+    fn next(&mut self) -> Option<Self::Item> {
+        let res = Some(self.next);
+        self.next = self.simple_cycle.ptrs[self.next];
+        res
     }
 }
 
 #[cfg(test)]
 mod test {
-    use super::SimpleCycle;
+    use crate::simple_cycle::SimpleCycle;
 
     #[test]
     fn test_extend() {
@@ -143,7 +112,8 @@ mod test {
             (4, 3, 1),
         ];
 
-        let mut boundary = SimpleCycle::new(tris[0].0, tris[0].1, tris[0].2);
+        let mut boundary = SimpleCycle::new(7);
+        boundary.init(tris[0].0, tris[0].1, tris[0].2);
 
         for i in 1..tris.len() {
             let mut idx = i;
@@ -159,8 +129,9 @@ mod test {
                     Err(()) => idx += 1,
                 }
             }
-            assert!(boundary.is_valid())
         }
-        assert_eq!(boundary, SimpleCycle::from_vec(vec![2, 4, 6, 5]));
+        assert_eq!(boundary.len, 4);
+        let res = boundary.iter().take(boundary.len).collect::<Vec<_>>();
+        assert_eq!(res, vec![2, 4, 6, 5])
     }
 }

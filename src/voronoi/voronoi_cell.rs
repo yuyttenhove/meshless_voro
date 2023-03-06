@@ -57,6 +57,7 @@ pub struct ConvexCell {
     pub loc: DVec3,
     pub clipping_planes: Vec<HalfSpace>,
     pub vertices: Vec<Vertex>,
+    boundary: SimpleCycle,
     safety_radius: f64,
     pub idx: usize,
 }
@@ -116,6 +117,7 @@ impl ConvexCell {
         ];
         ConvexCell {
             loc: DVec3::ZERO,
+            boundary: SimpleCycle::new(clipping_planes.len()),
             clipping_planes,
             vertices,
             safety_radius: 0.,
@@ -180,26 +182,27 @@ impl ConvexCell {
             // Add the new clipping plane
             let p_idx = self.clipping_planes.len();
             self.clipping_planes.push(p);
+            self.boundary.grow();
             // Compute the boundary of the (dual) topological triangulated disk around the vertices to be removed.
-            let boundary = Self::compute_boundary(&mut self.vertices[num_v..]);
+            Self::compute_boundary(&mut self.boundary, &mut self.vertices[num_v..]);
+            let mut boundary = self.boundary.iter().take(self.boundary.len + 1);
             // finally we can *realy* remove the vertices.
             self.vertices.truncate(num_v);
             // Add new vertices constructed from the new clipping plane and the boundary
-            for i in 0..boundary.len() {
-                self.vertices.push(Vertex::from_dual(
-                    boundary[i],
-                    boundary[i + 1],
-                    p_idx,
-                    &self.clipping_planes,
-                ));
+            let mut cur = boundary
+                .next()
+                .expect("Boundary contains at least 3 elements");
+            for next in boundary {
+                self.vertices
+                    .push(Vertex::from_dual(cur, next, p_idx, &self.clipping_planes));
+                cur = next;
             }
             self.update_safety_radius(dimensionality);
         }
     }
 
-    fn compute_boundary(vertices: &mut [Vertex]) -> SimpleCycle<usize> {
-        let mut boundary =
-            SimpleCycle::new(vertices[0].dual.0, vertices[0].dual.1, vertices[0].dual.2);
+    fn compute_boundary(boundary: &mut SimpleCycle, vertices: &mut [Vertex]) {
+        boundary.init(vertices[0].dual.0, vertices[0].dual.1, vertices[0].dual.2);
 
         for i in 1..vertices.len() {
             // Look for a suitable next vertex to extend the boundary
@@ -221,9 +224,6 @@ impl ConvexCell {
                 }
             }
         }
-
-        debug_assert!(boundary.is_valid());
-        boundary
     }
 
     fn update_safety_radius(&mut self, dimensionality: Dimensionality) {
