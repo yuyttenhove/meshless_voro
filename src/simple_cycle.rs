@@ -16,7 +16,7 @@ impl SimpleCycle {
 
     pub fn grow(&mut self) {
         self.ptrs.push(self.ptrs.len());
-    } 
+    }
 
     pub fn init(&mut self, a: usize, b: usize, c: usize) {
         let mut current = self.start;
@@ -70,7 +70,7 @@ impl SimpleCycle {
                     self.start = tri[i];
                 }
                 self.len -= 1;
-                return Ok(())
+                return Ok(());
             }
         }
 
@@ -78,7 +78,10 @@ impl SimpleCycle {
     }
 
     pub fn iter(&self) -> SimpleCycle2Iterator {
-        SimpleCycle2Iterator { simple_cycle: self, next: self.start }
+        SimpleCycle2Iterator {
+            simple_cycle: self,
+            next: self.start,
+        }
     }
 }
 

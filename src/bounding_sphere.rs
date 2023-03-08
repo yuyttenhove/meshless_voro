@@ -50,7 +50,6 @@ impl BoundingSphereSolver for Welzl {
     fn bounding_sphere_of_spheres(_spheres: &[Sphere]) -> Sphere {
         unimplemented!()
     }
-    
 }
 
 pub(crate) struct EPOS6;
@@ -128,7 +127,20 @@ impl BoundingSphereSolver for EPOS6 {
         }
 
         // Get sphere from extremal points
-        let extremal_points = idx_min.into_iter().enumerate().map(|(i, idx)| { let mut p = spheres[idx].center; p[i] -= spheres[idx].radius; p}).chain(idx_min.into_iter().enumerate().map(|(i, idx)| { let mut p = spheres[idx].center; p[i] -= spheres[idx].radius; p})).collect::<Vec<_>>();
+        let extremal_points = idx_min
+            .into_iter()
+            .enumerate()
+            .map(|(i, idx)| {
+                let mut p = spheres[idx].center;
+                p[i] -= spheres[idx].radius;
+                p
+            })
+            .chain(idx_min.into_iter().enumerate().map(|(i, idx)| {
+                let mut p = spheres[idx].center;
+                p[i] -= spheres[idx].radius;
+                p
+            }))
+            .collect::<Vec<_>>();
         let mut bounding_sphere = Welzl::bounding_sphere(&extremal_points);
 
         // Extend if necessary
@@ -143,7 +155,6 @@ impl BoundingSphereSolver for EPOS6 {
 
         bounding_sphere
     }
-    
 }
 
 #[cfg(test)]

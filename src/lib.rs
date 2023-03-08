@@ -6,6 +6,7 @@
 
 mod bounding_sphere;
 mod geometry;
+mod integrators;
 mod part;
 mod rtree_nn;
 mod simple_cycle;
@@ -15,4 +16,5 @@ mod space;
 mod util;
 mod voronoi;
 
+pub use integrators::{VoronoiCellIntegrator, VoronoiFaceIntegrator};
 pub use voronoi::{Voronoi, VoronoiCell, VoronoiFace};

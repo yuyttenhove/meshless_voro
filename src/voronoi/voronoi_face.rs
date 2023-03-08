@@ -1,8 +1,91 @@
 use glam::DVec3;
 
-use crate::util::signed_area_tri;
+use crate::integrators::{
+    AreaCentroidIntegrator, ScalarVoronoiFaceIntegrator, VectorVoronoiFaceIntegrator,
+    VoronoiFaceIntegrator,
+};
 
-use super::Dimensionality;
+use super::{voronoi_cell::HalfSpace, Dimensionality};
+
+pub struct VoronoiFaceBuilder<'a> {
+    left_idx: usize,
+    left_loc: DVec3,
+    right_loc: DVec3,
+    half_space: &'a HalfSpace,
+    area_centroid: AreaCentroidIntegrator,
+    vector_face_integrators: Vec<Box<dyn VectorVoronoiFaceIntegrator<Output = DVec3>>>,
+    scalar_face_integrators: Vec<Box<dyn ScalarVoronoiFaceIntegrator<Output = f64>>>,
+}
+
+impl<'a> VoronoiFaceBuilder<'a> {
+    pub fn new(
+        left_idx: usize,
+        left_loc: DVec3,
+        half_space: &'a HalfSpace,
+        vector_face_integrals: &[Box<
+            dyn Fn() -> Box<dyn VectorVoronoiFaceIntegrator> + Send + Sync,
+        >],
+        scalar_face_integrals: &[Box<
+            dyn Fn() -> Box<dyn ScalarVoronoiFaceIntegrator> + Send + Sync,
+        >],
+    ) -> Self {
+        let half_loc = half_space.project_onto(left_loc);
+        let vector_face_integrators = vector_face_integrals
+            .iter()
+            .map(|get_integrator| get_integrator())
+            .collect();
+        let scalar_face_integrators = scalar_face_integrals
+            .iter()
+            .map(|get_integrator| get_integrator())
+            .collect();
+        Self {
+            left_idx,
+            left_loc,
+            right_loc: 2. * half_loc - left_loc,
+            half_space,
+            area_centroid: AreaCentroidIntegrator::init(),
+            vector_face_integrators,
+            scalar_face_integrators,
+        }
+    }
+
+    pub fn extend(&mut self, v0: DVec3, v1: DVec3, v2: DVec3) {
+        self.area_centroid
+            .collect(v0, v1, v2, self.left_loc, self.right_loc);
+        for integrator in self.vector_face_integrators.iter_mut() {
+            integrator.collect(v0, v1, v2, self.left_loc, self.right_loc)
+        }
+        for integrator in self.scalar_face_integrators.iter_mut() {
+            integrator.collect(v0, v1, v2, self.left_loc, self.right_loc)
+        }
+    }
+
+    pub fn build(self) -> (VoronoiFace, Vec<DVec3>, Vec<f64>) {
+        let (area, centroid) = self.area_centroid.finalize();
+        let vector_integrals = self
+            .vector_face_integrators
+            .iter()
+            .map(|integrator| integrator.finalize())
+            .collect();
+        let scalar_integrals = self
+            .scalar_face_integrators
+            .iter()
+            .map(|integrator| integrator.finalize())
+            .collect();
+        (
+            VoronoiFace::new(
+                self.left_idx,
+                self.half_space.right_idx,
+                area,
+                centroid,
+                -self.half_space.normal(),
+                self.half_space.shift,
+            ),
+            vector_integrals,
+            scalar_integrals,
+        )
+    }
+}
 
 /// A Voronoi face between two neighbouring generators.
 pub struct VoronoiFace {
@@ -15,31 +98,22 @@ pub struct VoronoiFace {
 }
 
 impl VoronoiFace {
-    pub(super) fn init(
+    pub(super) fn new(
         left: usize,
         right: Option<usize>,
+        area: f64,
+        centroid: DVec3,
         normal: DVec3,
         shift: Option<DVec3>,
     ) -> Self {
         VoronoiFace {
             left,
             right,
-            area: 0.,
-            centroid: DVec3::ZERO,
+            area,
+            centroid,
             normal,
             shift,
         }
-    }
-
-    pub(super) fn extend(&mut self, v0: DVec3, v1: DVec3, v2: DVec3, t: DVec3) {
-        let area = signed_area_tri(v0, v1, v2, t);
-        self.area += area;
-        self.centroid += area * (v0 + v1 + v2);
-    }
-
-    pub(super) fn finalize(&mut self) {
-        let area_inv = if self.area != 0. { 1. / self.area } else { 0. };
-        self.centroid *= area_inv / 3.;
     }
 
     pub(super) fn has_valid_dimensionality(&self, dimensionality: Dimensionality) -> bool {

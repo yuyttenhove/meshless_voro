@@ -285,10 +285,29 @@ mod test {
     #[test]
     fn test_aabb_plane_intersection() {
         let aabb = AABB::new(DVec3::NEG_ONE, DVec3::X);
-        let n = DVec3 { x: 1., y: 2., z: 1. }.normalize();
-        let plane = Plane::new(n, DVec3 { x: 1.1, y: 0., z: 0. });
+        let n = DVec3 {
+            x: 1.,
+            y: 2.,
+            z: 1.,
+        }
+        .normalize();
+        let plane = Plane::new(
+            n,
+            DVec3 {
+                x: 1.1,
+                y: 0.,
+                z: 0.,
+            },
+        );
         assert!(!plane.intersects_aabb(&aabb));
-        let plane = Plane::new(n, DVec3 { x: 0.9, y: 0., z: 0. });
+        let plane = Plane::new(
+            n,
+            DVec3 {
+                x: 0.9,
+                y: 0.,
+                z: 0.,
+            },
+        );
         assert!(plane.intersects_aabb(&aabb));
     }
 }
