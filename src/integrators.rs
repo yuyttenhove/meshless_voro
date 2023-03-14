@@ -18,7 +18,7 @@ pub trait VectorVoronoiCellIntegrator: VoronoiCellIntegrator<Output = DVec3> {}
 pub trait ScalarVoronoiCellIntegrator: VoronoiCellIntegrator<Output = f64> {}
 
 /// Trait to implement additional integrals over faces.
-pub trait VoronoiFaceIntegrator {
+pub trait VoronoiFaceIntegrator: {
     type Output;
 
     /// Update the state of a face's integrator using an oriented triangle

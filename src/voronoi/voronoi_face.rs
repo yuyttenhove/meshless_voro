@@ -60,7 +60,16 @@ impl<'a> VoronoiFaceBuilder<'a> {
         }
     }
 
-    pub fn build(self) -> (VoronoiFace, Vec<DVec3>, Vec<f64>) {
+    pub(crate) fn has_valid_dimensionality(&self, dimensionality: Dimensionality) -> bool {
+        let normal = self.half_space.normal();
+        match dimensionality {
+            Dimensionality::Dimensionality1D => normal.y == 0. && normal.z == 0.,
+            Dimensionality::Dimensionality2D => normal.z == 0.,
+            Dimensionality::Dimensionality3D => true,
+        }
+    }
+
+    pub fn build(&self) -> (VoronoiFace, Vec<DVec3>, Vec<f64>) {
         let (area, centroid) = self.area_centroid.finalize();
         let vector_integrals = self
             .vector_face_integrators
@@ -88,7 +97,7 @@ impl<'a> VoronoiFaceBuilder<'a> {
 }
 
 /// A Voronoi face between two neighbouring generators.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct VoronoiFace {
     left: usize,
     right: Option<usize>,
@@ -114,14 +123,6 @@ impl VoronoiFace {
             centroid,
             normal,
             shift,
-        }
-    }
-
-    pub(super) fn has_valid_dimensionality(&self, dimensionality: Dimensionality) -> bool {
-        match dimensionality {
-            Dimensionality::Dimensionality1D => self.normal.y == 0. && self.normal.z == 0.,
-            Dimensionality::Dimensionality2D => self.normal.z == 0.,
-            Dimensionality::Dimensionality3D => true,
         }
     }
 

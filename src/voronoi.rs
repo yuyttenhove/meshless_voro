@@ -10,7 +10,6 @@ use std::path::Path;
 use crate::{
     integrators::{ScalarVoronoiFaceIntegrator, VectorVoronoiFaceIntegrator},
     rtree_nn::{build_rtree, nn_iter, wrapping_nn_iter},
-    util::retain,
 };
 
 pub use generator::Generator;
@@ -48,6 +47,21 @@ impl From<Dimensionality> for usize {
             Dimensionality::Dimensionality3D => 3,
         }
     }
+}
+
+/// Unravel a contiguous `array` of consecutive chunks of `n` elements.
+macro_rules! unravel {
+    ($array:expr, $n:expr) => {
+        (0..$n)
+            .map(|i| $array.iter().take(i).step_by($n).map(|v| *v).collect())
+            .collect()
+    };
+}
+
+macro_rules! flatten {
+    ($array:expr) => {
+        $array.into_iter().flatten().collect::<Vec<_>>()
+    };
 }
 
 /// The main Voronoi struct
@@ -174,147 +188,33 @@ impl Voronoi {
         let simulation_volume =
             ConvexCell::init_simulation_volume(anchor, width, periodic, dimensionality);
 
-        fn maybe_build_cell(
-            idx: usize,
-            generators: &[Generator],
-            mask: Option<&[bool]>,
-            faces: &mut Vec<VoronoiFace>,
-            vector_face_integrals: &mut Vec<DVec3>,
-            scalar_face_integrals: &mut Vec<f64>,
-            rtree: &RTree<Generator>,
-            simulation_volume: &ConvexCell,
-            width: DVec3,
-            dimensionality: Dimensionality,
-            periodic: bool,
-            vector_face_integrators: &[Box<
-                dyn Fn() -> Box<dyn VectorVoronoiFaceIntegrator> + Send + Sync,
-            >],
-            scalar_face_integrators: &[Box<
-                dyn Fn() -> Box<dyn ScalarVoronoiFaceIntegrator> + Send + Sync,
-            >],
-        ) -> VoronoiCell {
-            if mask.map_or(true, |mask| mask[idx]) {
-                let loc = generators[idx].loc();
-                debug_assert_eq!(generators[idx].id(), idx);
-                let mut convex_cell = ConvexCell::init(loc, idx, simulation_volume, dimensionality);
-                let nearest_neighbours = if periodic {
-                    wrapping_nn_iter(&rtree, loc, width, dimensionality)
-                } else {
-                    nn_iter(&rtree, loc)
-                };
-                convex_cell.build(&generators, nearest_neighbours, dimensionality);
-                VoronoiCell::from_convex_cell(
-                    &convex_cell,
-                    faces,
-                    vector_face_integrals,
-                    scalar_face_integrals,
-                    mask,
-                    vector_face_integrators,
-                    scalar_face_integrators,
-                )
-            } else {
-                VoronoiCell::default()
-            }
-        }
+        let n_cells = generators.len();
+        let mut faces = vec![vec![]; n_cells];
+        let mut vector_face_integrals = vec![vec![]; n_cells];
+        let mut scalar_face_integrals = vec![vec![]; n_cells];
+        let cells = Self::build_cells(
+            &generators,
+            &mut faces,
+            &mut vector_face_integrals,
+            &mut scalar_face_integrals,
+            mask,
+            &rtree,
+            &simulation_volume,
+            width,
+            dimensionality,
+            periodic,
+            vector_face_integrators,
+            scalar_face_integrators,
+        );
 
-        let mut faces: Vec<Vec<VoronoiFace>> = generators.iter().map(|_| vec![]).collect();
-        let mut vector_face_integrals: Vec<Vec<DVec3>> =
-            generators.iter().map(|_| vec![]).collect();
-        let mut scalar_face_integrals: Vec<Vec<f64>> = generators.iter().map(|_| vec![]).collect();
-        #[cfg(feature = "rayon")]
-        let cells = faces
-            .par_iter_mut()
-            .zip(vector_face_integrals.par_iter_mut())
-            .zip(scalar_face_integrals.par_iter_mut())
-            .enumerate()
-            .map(
-                |(idx, ((faces, vector_face_integrals), scalar_face_integrals))| {
-                    maybe_build_cell(
-                        idx,
-                        &generators,
-                        mask,
-                        faces,
-                        vector_face_integrals,
-                        scalar_face_integrals,
-                        &rtree,
-                        &simulation_volume,
-                        width,
-                        dimensionality,
-                        periodic,
-                        vector_face_integrators,
-                        scalar_face_integrators,
-                    )
-                },
-            )
-            .collect();
-        #[cfg(not(feature = "rayon"))]
-        let cells = faces
-            .iter_mut()
-            .zip(vector_face_integrals.iter_mut())
-            .zip(scalar_face_integrals.iter_mut())
-            .enumerate()
-            .map(
-                |(idx, ((faces, vector_face_integrals), scalar_face_integrals))| {
-                    maybe_build_cell(
-                        idx,
-                        &generators,
-                        mask,
-                        faces,
-                        vector_face_integrals,
-                        scalar_face_integrals,
-                        &rtree,
-                        &simulation_volume,
-                        width,
-                        dimensionality,
-                        periodic,
-                        vector_face_integrators,
-                        scalar_face_integrators,
-                    )
-                },
-            )
-            .collect();
+        // flatten faces and integrals
+        let faces = flatten!(faces);
+        let vector_face_integrals = flatten!(vector_face_integrals);
+        let scalar_face_integrals = flatten!(scalar_face_integrals);
 
-        // flatten faces and filter on dimensionality
-        let mut faces = faces.into_iter().flatten().collect::<Vec<_>>();
-        let face_mask = faces
-            .iter()
-            .map(|f| f.has_valid_dimensionality(dimensionality))
-            .collect::<Vec<_>>();
-        retain(&mut faces, &face_mask);
-
-        // Flatten and filter face integrals
-        let vector_face_integrals = vector_face_integrals
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>();
-        let n = vector_face_integrators.len();
-        let mut vector_face_integrals = (0..n)
-            .map(|i| {
-                vector_face_integrals
-                    .iter()
-                    .skip(i)
-                    .step_by(n)
-                    .copied()
-                    .collect::<Vec<_>>()
-            })
-            .collect::<Vec<_>>();
-        retain(&mut vector_face_integrals, &face_mask);
-        let scalar_face_integrals = scalar_face_integrals
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>();
-        let n = scalar_face_integrators.len();
-        let mut scalar_face_integrals = (0..n)
-            .map(|i| {
-                scalar_face_integrals
-                    .iter()
-                    .skip(i)
-                    .step_by(n)
-                    .copied()
-                    .collect::<Vec<_>>()
-            })
-            .collect::<Vec<_>>();
-        retain(&mut scalar_face_integrals, &face_mask);
+        // unravel the face integrals
+        let vector_face_integrals = unravel!(vector_face_integrals, vector_face_integrators.len());
+        let scalar_face_integrals = unravel!(scalar_face_integrals, scalar_face_integrators.len());
 
         Voronoi {
             anchor,
@@ -351,6 +251,136 @@ impl Voronoi {
         self.cell_face_connections = cell_face_connections.into_iter().flatten().collect();
 
         self
+    }
+
+    fn build_cells(
+        generators: &[Generator],
+        faces: &mut [Vec<VoronoiFace>],
+        vector_face_integrals: &mut [Vec<DVec3>],
+        scalar_face_integrals: &mut [Vec<f64>],
+        mask: Option<&[bool]>,
+        rtree: &RTree<Generator>,
+        simulation_volume: &ConvexCell,
+        width: DVec3,
+        dimensionality: Dimensionality,
+        periodic: bool,
+        vector_face_integrators: &[Box<
+            dyn Fn() -> Box<dyn VectorVoronoiFaceIntegrator> + Send + Sync,
+        >],
+        scalar_face_integrators: &[Box<
+            dyn Fn() -> Box<dyn ScalarVoronoiFaceIntegrator> + Send + Sync,
+        >],
+    ) -> Vec<VoronoiCell> {
+        // Helper function to build a single voronoi cell
+        fn maybe_build_cell(
+            idx: usize,
+            generators: &[Generator],
+            mask: Option<&[bool]>,
+            rtree: &RTree<Generator>,
+            simulation_volume: &ConvexCell,
+            width: DVec3,
+            dimensionality: Dimensionality,
+            periodic: bool,
+            vector_face_integrators: &[Box<
+                dyn Fn() -> Box<dyn VectorVoronoiFaceIntegrator> + Send + Sync,
+            >],
+            scalar_face_integrators: &[Box<
+                dyn Fn() -> Box<dyn ScalarVoronoiFaceIntegrator> + Send + Sync,
+            >],
+            faces: &mut Vec<VoronoiFace>,
+            vector_face_integrals: &mut Vec<DVec3>,
+            scalar_face_integrals: &mut Vec<f64>,
+        ) -> VoronoiCell {
+            if mask.map_or(true, |mask| mask[idx]) {
+                let loc = generators[idx].loc();
+                debug_assert_eq!(generators[idx].id(), idx);
+                let mut convex_cell = ConvexCell::init(loc, idx, simulation_volume, dimensionality);
+                let nearest_neighbours = if periodic {
+                    wrapping_nn_iter(&rtree, loc, width, dimensionality)
+                } else {
+                    nn_iter(&rtree, loc)
+                };
+                convex_cell.build(&generators, nearest_neighbours, dimensionality);
+                let mut face_builders = vec![];
+                let voronoi_cell = VoronoiCell::from_convex_cell(
+                    &convex_cell,
+                    &mut face_builders,
+                    mask,
+                    vector_face_integrators,
+                    scalar_face_integrators,
+                );
+
+                // filter faces based on dimensionality before finalizing
+                for face_builder in face_builders.into_iter() {
+                    if !face_builder.has_valid_dimensionality(dimensionality) {
+                        continue;
+                    }
+                    let (face, vector_integrals, scalar_integrals) = face_builder.build();
+                    faces.push(face);
+                    vector_face_integrals.extend(vector_integrals);
+                    scalar_face_integrals.extend(scalar_integrals);
+                }
+
+                voronoi_cell
+            } else {
+                VoronoiCell::default()
+            }
+        }
+
+        #[cfg(feature = "rayon")]
+        return generators
+            .par_iter()
+            .enumerate()
+            .zip(faces.par_iter_mut())
+            .zip(vector_face_integrals.par_iter_mut())
+            .zip(scalar_face_integrals.par_iter_mut())
+            .map(
+                |((((idx, _), faces), vector_face_integrals), scalar_face_integrals)| {
+                    maybe_build_cell(
+                        idx,
+                        generators,
+                        mask,
+                        rtree,
+                        simulation_volume,
+                        width,
+                        dimensionality,
+                        periodic,
+                        vector_face_integrators,
+                        scalar_face_integrators,
+                        faces,
+                        vector_face_integrals,
+                        scalar_face_integrals,
+                    )
+                },
+            )
+            .collect();
+
+        #[cfg(not(feature = "rayon"))]
+        return faces
+            .iter_mut()
+            .enumerate()
+            .zip(vector_face_integrals.iter_mut())
+            .zip(scalar_face_integrals.iter_mut())
+            .map(
+                |(((idx, faces), vector_face_integrals), scalar_face_integrals)| {
+                    maybe_build_cell(
+                        idx,
+                        generators,
+                        mask,
+                        rtree,
+                        simulation_volume,
+                        width,
+                        dimensionality,
+                        periodic,
+                        vector_face_integrators,
+                        scalar_face_integrators,
+                        faces,
+                        vector_face_integrals,
+                        scalar_face_integrals,
+                    )
+                },
+            )
+            .collect();
     }
 
     /// The anchor of the simulation volume. All generators are assumed to be contained in this simulation volume.
@@ -780,7 +810,7 @@ mod test {
     #[test]
     fn test_3_d() {
         let pert = 0.95;
-        let count = 25;
+        let count = 75;
         let anchor = DVec3::ZERO;
         let width = DVec3::splat(2.);
         let generators = perturbed_grid(anchor, width, count, pert);

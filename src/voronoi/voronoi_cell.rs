@@ -311,11 +311,9 @@ impl VoronoiCell {
     /// Build a Voronoi cell from a ConvexCell by computing the relevant integrals.
     ///
     /// Any Voronoi faces that are created by the construction of this cell are stored in the `faces` vector.
-    pub fn from_convex_cell(
-        convex_cell: &ConvexCell,
-        faces: &mut Vec<VoronoiFace>,
-        vector_face_integrals: &mut Vec<DVec3>,
-        scalar_face_integrals: &mut Vec<f64>,
+    pub fn from_convex_cell<'a>(
+        convex_cell: &'a ConvexCell,
+        faces: &mut Vec<VoronoiFaceBuilder<'a>>,
         mask: Option<&[bool]>,
         vector_face_integrators: &[Box<
             dyn Fn() -> Box<dyn VectorVoronoiFaceIntegrator> + Send + Sync,
@@ -446,10 +444,7 @@ impl VoronoiCell {
         // Filter out uninitialized faces and finalize the rest
         for maybe_face in maybe_faces {
             if let Some(face) = maybe_face {
-                let (face, vector_integrals, scalar_integrals) = face.build();
                 faces.push(face);
-                vector_face_integrals.extend(vector_integrals);
-                scalar_face_integrals.extend(scalar_integrals);
             }
         }
 

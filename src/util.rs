@@ -122,8 +122,3 @@ mod test {
         assert_eq!(area, area3)
     }
 }
-
-pub fn retain<T>(v: &mut Vec<T>, mask: &[bool]) {
-    let mut iter = mask.iter();
-    v.retain(|_| *iter.next().unwrap());
-}
