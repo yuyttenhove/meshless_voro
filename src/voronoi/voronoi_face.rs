@@ -88,6 +88,7 @@ impl<'a> VoronoiFaceBuilder<'a> {
 }
 
 /// A Voronoi face between two neighbouring generators.
+#[derive(Debug)]
 pub struct VoronoiFace {
     left: usize,
     right: Option<usize>,

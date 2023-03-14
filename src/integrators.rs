@@ -87,7 +87,7 @@ impl VoronoiFaceIntegrator for AreaCentroidIntegrator {
     fn collect(&mut self, v0: DVec3, v1: DVec3, v2: DVec3, left: DVec3, _right: DVec3) {
         let area = signed_area_tri(v0, v1, v2, left);
         self.area += area;
-        self.centroid += area * (v0 + v1 + v2 + left);
+        self.centroid += area * (v0 + v1 + v2);
     }
 
     fn finalize(&self) -> Self::Output {

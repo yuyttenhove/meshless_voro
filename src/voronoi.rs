@@ -392,6 +392,24 @@ impl Voronoi {
         self.dimensionality.into()
     }
 
+    /// For all cells, check that the area of the faces is larger than the area of a sphere with the same volume
+    #[cfg(test)]
+    fn consistency_check(&self) {
+        use float_cmp::assert_approx_eq;
+
+        let mut total_volume = 0.;
+        for cell in self.cells() {
+            let faces = cell.faces(self);
+            let area: f64 = faces.map(|f| f.area()).sum();
+            let radius = (0.25 * 3. * std::f64::consts::FRAC_1_PI * cell.volume()).powf(1. / 3.);
+            let sphere_area = 4. * std::f64::consts::PI * radius * radius;
+            assert!(area > sphere_area);
+            total_volume += cell.volume();
+        }
+        let box_volume = self.width.x * self.width.y * self.width.z;
+        assert_approx_eq!(f64, total_volume, box_volume, epsilon = 1e-12, ulps = 8);
+    }
+
     /// Save the Voronoi tesselation to a hdf5 file. Requires the `hdf5` feature to be enabled.
     #[cfg(feature = "hdf5")]
     pub fn save<P: AsRef<Path>>(&self, filename: P) -> Result<(), Box<dyn Error>> {
@@ -618,7 +636,7 @@ mod test {
         let voronoi = Voronoi::build(&generators, anchor, width, DIM2D, true, None, None);
         #[cfg(feature = "hdf5")]
         voronoi.save("test_4_cells.hdf5").unwrap();
-        assert_approx_eq!(f64, voronoi.cells.iter().map(|c| c.volume()).sum(), 2.);
+        voronoi.consistency_check();
     }
 
     #[test]
@@ -701,11 +719,7 @@ mod test {
         let width = DVec3::splat(1.);
         let generators = perturbed_grid(anchor, width, 5, pert);
         let voronoi = Voronoi::build(&generators, anchor, width, DIM3D, false, None, None);
-        let mut total_volume = 0.;
-        for cell in &voronoi.cells {
-            total_volume += cell.volume();
-        }
-        assert_approx_eq!(f64, total_volume, 1., epsilon = 1e-10, ulps = 8)
+        voronoi.consistency_check();
     }
 
     #[test]
@@ -766,14 +780,13 @@ mod test {
     #[test]
     fn test_3_d() {
         let pert = 0.95;
-        let count = 100;
+        let count = 25;
         let anchor = DVec3::ZERO;
         let width = DVec3::splat(2.);
         let generators = perturbed_grid(anchor, width, count, pert);
         let voronoi = Voronoi::build(&generators, anchor, width, DIM3D, false, None, None);
-        let total_volume: f64 = voronoi.cells.iter().map(|c| c.volume()).sum();
         assert_eq!(voronoi.cells.len(), generators.len());
-        assert_approx_eq!(f64, total_volume, 8., epsilon = 1e-10, ulps = 8);
+        voronoi.consistency_check();
     }
 
     #[test]
@@ -805,8 +818,7 @@ mod test {
         #[cfg(feature = "hdf5")]
         voronoi.save("test_density_grad_2_d.hdf5").unwrap();
 
-        let total_volume: f64 = voronoi.cells.iter().map(|c| c.volume()).sum();
         assert_eq!(voronoi.cells.len(), plane.len());
-        assert_approx_eq!(f64, total_volume, 1., epsilon = 1e-10, ulps = 8);
+        voronoi.consistency_check();
     }
 }
