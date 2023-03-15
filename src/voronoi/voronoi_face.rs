@@ -13,8 +13,8 @@ pub struct VoronoiFaceBuilder<'a> {
     right_loc: DVec3,
     half_space: &'a HalfSpace,
     area_centroid: AreaCentroidIntegrator,
-    vector_face_integrators: Vec<Box<dyn VectorVoronoiFaceIntegrator<Output = DVec3>>>,
-    scalar_face_integrators: Vec<Box<dyn ScalarVoronoiFaceIntegrator<Output = f64>>>,
+    vector_face_integrators: Vec<Box<dyn VectorVoronoiFaceIntegrator>>,
+    scalar_face_integrators: Vec<Box<dyn ScalarVoronoiFaceIntegrator>>,
 }
 
 impl<'a> VoronoiFaceBuilder<'a> {

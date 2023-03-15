@@ -15,7 +15,11 @@ pub trait VoronoiCellIntegrator {
 }
 
 pub trait VectorVoronoiCellIntegrator: VoronoiCellIntegrator<Output = DVec3> {}
+
+impl<T: VoronoiCellIntegrator<Output = DVec3>> VectorVoronoiCellIntegrator for T {}
 pub trait ScalarVoronoiCellIntegrator: VoronoiCellIntegrator<Output = f64> {}
+
+impl<T: VoronoiCellIntegrator<Output = f64>> ScalarVoronoiCellIntegrator for T {}
 
 /// Trait to implement additional integrals over faces.
 pub trait VoronoiFaceIntegrator: {
@@ -30,7 +34,11 @@ pub trait VoronoiFaceIntegrator: {
 }
 
 pub trait VectorVoronoiFaceIntegrator: VoronoiFaceIntegrator<Output = DVec3> {}
+
+impl<T: VoronoiFaceIntegrator<Output = DVec3>> VectorVoronoiFaceIntegrator for T {}
 pub trait ScalarVoronoiFaceIntegrator: VoronoiFaceIntegrator<Output = f64> {}
+
+impl<T: VoronoiFaceIntegrator<Output = f64>> ScalarVoronoiFaceIntegrator for T {}
 
 #[derive(Default)]
 pub struct VolumeCentroidIntegrator {
