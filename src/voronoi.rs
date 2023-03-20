@@ -10,13 +10,17 @@ use std::path::Path;
 use crate::{
     integrators::{ScalarVoronoiFaceIntegrator, VectorVoronoiFaceIntegrator},
     rtree_nn::{build_rtree, nn_iter, wrapping_nn_iter},
+    voronoi::voronoi_cell::SimulationBoundary,
 };
 
+use convex_cell_alternative::ConvexCell as ConvexCellAlternative;
 pub use generator::Generator;
 use voronoi_cell::ConvexCell;
 pub use voronoi_cell::VoronoiCell;
 pub use voronoi_face::VoronoiFace;
 
+#[allow(unused)]
+mod convex_cell_alternative;
 mod generator;
 mod voronoi_cell;
 mod voronoi_face;
@@ -178,16 +182,6 @@ impl Voronoi {
             width.z = 1.;
         }
 
-        let generators: Vec<Generator> = generators
-            .iter()
-            .enumerate()
-            .map(|(id, &loc)| Generator::new(id, loc, dimensionality))
-            .collect();
-
-        let rtree = build_rtree(&generators);
-        let simulation_volume =
-            ConvexCell::init_simulation_volume(anchor, width, periodic, dimensionality);
-
         let n_cells = generators.len();
         let mut faces = vec![vec![]; n_cells];
         let mut vector_face_integrals = vec![vec![]; n_cells];
@@ -198,8 +192,7 @@ impl Voronoi {
             &mut vector_face_integrals,
             &mut scalar_face_integrals,
             mask,
-            &rtree,
-            &simulation_volume,
+            anchor,
             width,
             dimensionality,
             periodic,
@@ -254,13 +247,12 @@ impl Voronoi {
     }
 
     fn build_cells(
-        generators: &[Generator],
+        generators: &[DVec3],
         faces: &mut [Vec<VoronoiFace>],
         vector_face_integrals: &mut [Vec<DVec3>],
         scalar_face_integrals: &mut [Vec<f64>],
         mask: Option<&[bool]>,
-        rtree: &RTree<Generator>,
-        simulation_volume: &ConvexCell,
+        anchor: DVec3,
         width: DVec3,
         dimensionality: Dimensionality,
         periodic: bool,
@@ -271,13 +263,23 @@ impl Voronoi {
             dyn Fn() -> Box<dyn ScalarVoronoiFaceIntegrator> + Send + Sync,
         >],
     ) -> Vec<VoronoiCell> {
+        // Some general properties
+        let generators: Vec<Generator> = generators
+            .iter()
+            .enumerate()
+            .map(|(id, &loc)| Generator::new(id, loc, dimensionality))
+            .collect();
+
+        let rtree = build_rtree(&generators);
+        let simulation_volume = SimulationBoundary::cuboid(anchor, width, periodic, dimensionality);
+
         // Helper function to build a single voronoi cell
         fn maybe_build_cell(
             idx: usize,
             generators: &[Generator],
             mask: Option<&[bool]>,
             rtree: &RTree<Generator>,
-            simulation_volume: &ConvexCell,
+            simulation_volume: &SimulationBoundary,
             width: DVec3,
             dimensionality: Dimensionality,
             periodic: bool,
@@ -294,12 +296,12 @@ impl Voronoi {
             if mask.map_or(true, |mask| mask[idx]) {
                 let loc = generators[idx].loc();
                 debug_assert_eq!(generators[idx].id(), idx);
-                let mut convex_cell = ConvexCell::init(loc, idx, simulation_volume, dimensionality);
                 let nearest_neighbours = if periodic {
                     wrapping_nn_iter(&rtree, loc, width, dimensionality)
                 } else {
                     nn_iter(&rtree, loc)
                 };
+                let mut convex_cell = ConvexCell::init(loc, idx, simulation_volume, dimensionality);
                 convex_cell.build(&generators, nearest_neighbours, dimensionality);
                 let mut face_builders = vec![];
                 let voronoi_cell = VoronoiCell::from_convex_cell(
@@ -338,10 +340,10 @@ impl Voronoi {
                 |((((idx, _), faces), vector_face_integrals), scalar_face_integrals)| {
                     maybe_build_cell(
                         idx,
-                        generators,
+                        &generators,
                         mask,
-                        rtree,
-                        simulation_volume,
+                        &rtree,
+                        &simulation_volume,
                         width,
                         dimensionality,
                         periodic,
@@ -365,10 +367,10 @@ impl Voronoi {
                 |(((idx, faces), vector_face_integrals), scalar_face_integrals)| {
                     maybe_build_cell(
                         idx,
-                        generators,
+                        &generators,
                         mask,
-                        rtree,
-                        simulation_volume,
+                        &rtree,
+                        &simulation_volume,
                         width,
                         dimensionality,
                         periodic,

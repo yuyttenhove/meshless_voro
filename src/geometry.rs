@@ -160,6 +160,19 @@ impl Sphere {
     }
 }
 
+/// Test whether `v` lies inside or outside the circumsphere around `a`, `b`, `c` and `d`.
+/// See springel (2010) eq. (3).
+/// The result is negative when `v` lies inside and positive when `v` lies outside the circumsphere
+/// We work in relative coordinates to simplify the determinant to a 4x4 determinant.
+pub fn in_sphere_test(a: DVec3, b: DVec3, c: DVec3, d: DVec3, v: DVec3) -> f64 {
+    let b = (b - a).extend((b - a).length_squared());
+    let c = (c - a).extend((c - a).length_squared());
+    let d = (d - a).extend((d - a).length_squared());
+    let v = (v - a).extend((v - a).length_squared());
+
+    DMat4::from_cols(b, c, d, v).determinant()
+}
+
 #[derive(Clone)]
 #[allow(dead_code)]
 pub(crate) struct AABB {

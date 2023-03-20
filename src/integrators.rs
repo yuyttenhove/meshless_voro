@@ -22,7 +22,7 @@ pub trait ScalarVoronoiCellIntegrator: VoronoiCellIntegrator<Output = f64> {}
 impl<T: VoronoiCellIntegrator<Output = f64>> ScalarVoronoiCellIntegrator for T {}
 
 /// Trait to implement additional integrals over faces.
-pub trait VoronoiFaceIntegrator: {
+pub trait VoronoiFaceIntegrator {
     type Output;
 
     /// Update the state of a face's integrator using an oriented triangle

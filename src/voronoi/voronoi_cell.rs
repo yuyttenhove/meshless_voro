@@ -8,8 +8,10 @@ use crate::{
     },
     simple_cycle::SimpleCycle,
     util::GetMutMultiple,
-    voronoi::voronoi_face::VoronoiFaceBuilder,
-    Voronoi, VoronoiFace,
+    voronoi::{
+        voronoi_face::{VoronoiFace, VoronoiFaceBuilder},
+        ConvexCellAlternative, Voronoi,
+    },
 };
 
 use super::{Dimensionality, Generator};
@@ -50,47 +52,43 @@ impl HalfSpace {
 pub struct Vertex {
     pub loc: DVec3,
     pub dual: (usize, usize, usize),
+    pub radius2: f64,
 }
 
 impl Vertex {
-    fn from_dual(i: usize, j: usize, k: usize, half_spaces: &[HalfSpace]) -> Self {
+    fn from_dual(
+        i: usize,
+        j: usize,
+        k: usize,
+        half_spaces: &[HalfSpace],
+        gen_loc: DVec3,
+        dimensionality: Dimensionality,
+    ) -> Self {
+        let loc = intersect_planes(
+            &half_spaces[i].plane,
+            &half_spaces[j].plane,
+            &half_spaces[k].plane,
+        );
+        let d_loc = match dimensionality {
+            Dimensionality::Dimensionality1D => DVec3::new(loc.x, 0., 0.),
+            Dimensionality::Dimensionality2D => DVec3::new(loc.x, loc.y, 0.),
+            Dimensionality::Dimensionality3D => loc,
+        };
         Vertex {
-            loc: intersect_planes(
-                &half_spaces[i].plane,
-                &half_spaces[j].plane,
-                &half_spaces[k].plane,
-            ),
+            loc,
             dual: (i, j, k),
+            radius2: gen_loc.distance_squared(d_loc),
         }
     }
 }
 
 #[derive(Clone)]
-pub struct ConvexCell {
-    pub loc: DVec3,
-    pub clipping_planes: Vec<HalfSpace>,
-    pub vertices: Vec<Vertex>,
-    boundary: SimpleCycle,
-    safety_radius: f64,
-    pub idx: usize,
+pub(crate) struct SimulationBoundary {
+    clipping_planes: Vec<HalfSpace>,
 }
 
-impl ConvexCell {
-    /// Initialize each voronoi cell as the bounding box of the simulation volume.
-    pub(super) fn init(
-        loc: DVec3,
-        idx: usize,
-        simulation_volume: &ConvexCell,
-        dimensionality: Dimensionality,
-    ) -> Self {
-        let mut cell = simulation_volume.clone();
-        cell.idx = idx;
-        cell.loc = loc;
-        cell.update_safety_radius(dimensionality);
-        cell
-    }
-
-    pub(super) fn init_simulation_volume(
+impl SimulationBoundary {
+    pub fn cuboid(
         mut anchor: DVec3,
         mut width: DVec3,
         periodic: bool,
@@ -118,24 +116,52 @@ impl ConvexCell {
             HalfSpace::new(DVec3::Z, anchor, None, None),
             HalfSpace::new(DVec3::NEG_Z, anchor + width, None, None),
         ];
+
+        Self { clipping_planes }
+    }
+}
+
+#[derive(Clone)]
+pub struct ConvexCell {
+    pub loc: DVec3,
+    pub clipping_planes: Vec<HalfSpace>,
+    pub vertices: Vec<Vertex>,
+    boundary: SimpleCycle,
+    safety_radius: f64,
+    pub idx: usize,
+}
+
+impl ConvexCell {
+    /// Initialize each voronoi cell as the bounding box of the simulation volume.
+    pub(super) fn init(
+        loc: DVec3,
+        idx: usize,
+        simulation_volume: &SimulationBoundary,
+        dimensionality: Dimensionality,
+    ) -> Self {
+        let clipping_planes = simulation_volume.clipping_planes.clone();
+
         let vertices = vec![
-            Vertex::from_dual(2, 5, 0, &clipping_planes),
-            Vertex::from_dual(5, 3, 0, &clipping_planes),
-            Vertex::from_dual(1, 5, 2, &clipping_planes),
-            Vertex::from_dual(5, 1, 3, &clipping_planes),
-            Vertex::from_dual(4, 2, 0, &clipping_planes),
-            Vertex::from_dual(4, 0, 3, &clipping_planes),
-            Vertex::from_dual(2, 4, 1, &clipping_planes),
-            Vertex::from_dual(4, 3, 1, &clipping_planes),
+            Vertex::from_dual(2, 5, 0, &clipping_planes, loc, dimensionality),
+            Vertex::from_dual(5, 3, 0, &clipping_planes, loc, dimensionality),
+            Vertex::from_dual(1, 5, 2, &clipping_planes, loc, dimensionality),
+            Vertex::from_dual(5, 1, 3, &clipping_planes, loc, dimensionality),
+            Vertex::from_dual(4, 2, 0, &clipping_planes, loc, dimensionality),
+            Vertex::from_dual(4, 0, 3, &clipping_planes, loc, dimensionality),
+            Vertex::from_dual(2, 4, 1, &clipping_planes, loc, dimensionality),
+            Vertex::from_dual(4, 3, 1, &clipping_planes, loc, dimensionality),
         ];
-        ConvexCell {
-            loc: DVec3::ZERO,
+
+        let mut cell = ConvexCell {
+            loc,
+            idx,
             boundary: SimpleCycle::new(clipping_planes.len()),
             clipping_planes,
             vertices,
             safety_radius: 0.,
-            idx: 0,
-        }
+        };
+        cell.update_safety_radius();
+        cell
     }
 
     /// Build the Convex cell by repeatedly intersecting it with the appropriate half spaces
@@ -206,11 +232,17 @@ impl ConvexCell {
                 .next()
                 .expect("Boundary contains at least 3 elements");
             for next in boundary {
-                self.vertices
-                    .push(Vertex::from_dual(cur, next, p_idx, &self.clipping_planes));
+                self.vertices.push(Vertex::from_dual(
+                    cur,
+                    next,
+                    p_idx,
+                    &self.clipping_planes,
+                    self.loc,
+                    dimensionality,
+                ));
                 cur = next;
             }
-            self.update_safety_radius(dimensionality);
+            self.update_safety_radius();
         }
     }
 
@@ -239,28 +271,49 @@ impl ConvexCell {
         }
     }
 
-    fn update_safety_radius(&mut self, dimensionality: Dimensionality) {
+    fn update_safety_radius(&mut self) {
         let max_dist_2 = self
             .vertices
             .iter()
-            .map(|v| {
-                let mut v_loc = v.loc;
-                // Ignore the unused dimensions fo the safety radius!
-                match dimensionality {
-                    Dimensionality::Dimensionality1D => {
-                        v_loc.y = self.loc.y;
-                        v_loc.z = self.loc.z;
-                    }
-                    Dimensionality::Dimensionality2D => v_loc.z = self.loc.z,
-                    _ => (),
-                }
-                self.loc.distance_squared(v_loc)
-            })
+            .map(|v| v.radius2)
             .max_by(|a, b| a.partial_cmp(b).expect("NaN distance encountered!"))
             .expect("Vertices cannot be empty!");
 
         // Update safety radius
         self.safety_radius = 2. * max_dist_2.sqrt();
+    }
+}
+
+impl From<ConvexCellAlternative> for ConvexCell {
+    fn from(convex_cell_alt: ConvexCellAlternative) -> Self {
+        let clipping_planes = convex_cell_alt
+            .neighbours
+            .iter()
+            .map(|ngb| HalfSpace::new(-ngb.plane.n, ngb.plane.p, ngb.idx, ngb.shift))
+            .collect::<Vec<_>>();
+        let vertices = convex_cell_alt
+            .vertices
+            .iter()
+            .map(|v| {
+                Vertex::from_dual(
+                    v.repr.0,
+                    v.repr.1,
+                    v.repr.2,
+                    &clipping_planes,
+                    convex_cell_alt.loc,
+                    Dimensionality::Dimensionality3D,
+                )
+            })
+            .collect::<Vec<_>>();
+
+        ConvexCell {
+            loc: convex_cell_alt.loc,
+            clipping_planes,
+            vertices,
+            boundary: SimpleCycle::new(0),
+            safety_radius: 0.,
+            idx: convex_cell_alt.idx,
+        }
     }
 }
 
@@ -524,12 +577,11 @@ mod test {
     const DIM3D: usize = 3;
 
     #[test]
-    fn test_init_simulation_volume() {
+    fn test_init_cuboid() {
         let anchor = DVec3::splat(1.);
         let width = DVec3::splat(4.);
-        let cell = ConvexCell::init_simulation_volume(anchor, width, false, DIM3D.into());
+        let cell = SimulationBoundary::cuboid(anchor, width, false, DIM3D.into());
 
-        assert_eq!(cell.vertices.len(), 8);
         assert_eq!(cell.clipping_planes.len(), 6);
     }
 
@@ -538,7 +590,7 @@ mod test {
         let anchor = DVec3::splat(1.);
         let width = DVec3::splat(2.);
         let loc = DVec3::splat(2.);
-        let volume = ConvexCell::init_simulation_volume(anchor, width, false, DIM3D.into());
+        let volume = SimulationBoundary::cuboid(anchor, width, false, DIM3D.into());
         let mut cell = ConvexCell::init(loc, 0, &volume, DIM3D.into());
 
         let ngb = DVec3::splat(2.5);

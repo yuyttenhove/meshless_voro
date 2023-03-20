@@ -12,7 +12,7 @@ exclude = ["plot_vortess.py"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-glam = "0.23"
+glam = { version="0.23" }
 rstar = "0.10"
 rayon = { version = "1.7", optional = true }
 hdf5 = { version = "0.8", optional = true }
