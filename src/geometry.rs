@@ -1,6 +1,6 @@
 use glam::{DMat3, DMat4, DVec3, DVec4};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct Plane {
     pub n: DVec3,
     pub p: DVec3,

@@ -2,7 +2,7 @@ use glam::DVec3;
 
 use crate::geometry::Plane;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(super) struct HalfSpace {
     pub plane: Plane,
     d: f64,
@@ -27,9 +27,5 @@ impl HalfSpace {
 
     pub fn normal(&self) -> DVec3 {
         self.plane.n
-    }
-
-    pub fn project_onto(&self, point: DVec3) -> DVec3 {
-        self.plane.project_onto(point)
     }
 }

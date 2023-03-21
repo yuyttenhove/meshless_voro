@@ -4,13 +4,13 @@ use crate::{geometry::intersect_planes, simple_cycle::SimpleCycle};
 
 use super::{
     boundary::SimulationBoundary, convex_cell_alternative::ConvexCell as ConvexCellAlternative,
-    half_space::HalfSpace, Dimensionality, Generator,
+    half_space::HalfSpace, integrators::VoronoiIntegrator, Dimensionality, Generator,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(super) struct Vertex {
     pub loc: DVec3,
-    pub dual: (usize, usize, usize),
+    pub dual: [usize; 3],
     pub radius2: f64,
 }
 
@@ -35,13 +35,126 @@ impl Vertex {
         };
         Vertex {
             loc,
-            dual: (i, j, k),
+            dual: [i, j, k],
             radius2: gen_loc.distance_squared(d_loc),
         }
     }
 }
 
-#[derive(Clone)]
+pub(super) struct ConvexCellTet {
+    pub plane_idx: usize,
+    pub vertices: [DVec3; 3],
+    pub right_idx: Option<usize>,
+    pub normal: DVec3,
+    pub shift: Option<DVec3>,
+}
+
+impl ConvexCellTet {
+    pub fn new(
+        v0: DVec3,
+        v1: DVec3,
+        v2: DVec3,
+        plane_idx: usize,
+        right_id: Option<usize>,
+        normal: DVec3,
+        shift: Option<DVec3>,
+    ) -> Self {
+        Self {
+            vertices: [v0, v1, v2],
+            plane_idx,
+            right_idx: right_id,
+            normal,
+            shift,
+        }
+    }
+}
+
+pub(super) struct ConvexCellDecomposition<'a> {
+    convex_cell: &'a ConvexCell,
+    cur_vertex_idx: usize,
+    cur_vertex: &'a Vertex,
+    cur_plane_idx: usize,
+    cur_tet_idx: usize,
+    projections_on_plane: [DVec3; 3],
+}
+
+impl<'a> ConvexCellDecomposition<'a> {
+    fn new(convex_cell: &'a ConvexCell) -> Self {
+        let mut decomposition = Self {
+            convex_cell,
+            cur_vertex_idx: 0,
+            cur_vertex: &convex_cell.vertices[0],
+            cur_plane_idx: 0,
+            cur_tet_idx: 0,
+            projections_on_plane: [DVec3::ZERO; 3],
+        };
+        decomposition.load_plane();
+        decomposition
+    }
+
+    fn load_vertex(&mut self) {
+        self.cur_vertex = &self.convex_cell.vertices[self.cur_vertex_idx];
+        self.load_plane();
+    }
+
+    fn load_plane(&mut self) {
+        let cur_plane =
+            &self.convex_cell.clipping_planes[self.cur_vertex.dual[self.cur_plane_idx]].plane;
+        let next_plane = &self.convex_cell.clipping_planes
+            [self.cur_vertex.dual[(self.cur_plane_idx + 2) % 3]]
+            .plane;
+        let prev_plane = &self.convex_cell.clipping_planes
+            [self.cur_vertex.dual[(self.cur_plane_idx + 1) % 3]]
+            .plane;
+        self.projections_on_plane = [
+            prev_plane.project_onto_intersection(&cur_plane, self.convex_cell.loc),
+            cur_plane.project_onto(self.convex_cell.loc),
+            cur_plane.project_onto_intersection(&next_plane, self.convex_cell.loc),
+        ]
+    }
+}
+
+impl Iterator for ConvexCellDecomposition<'_> {
+    type Item = ConvexCellTet;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // Any vertices left to treat?
+        if self.cur_vertex_idx >= self.convex_cell.vertices.len() {
+            return None;
+        }
+
+        // Get next tet
+        let plane_idx = self.cur_vertex.dual[self.cur_plane_idx];
+        let plane = &self.convex_cell.clipping_planes[plane_idx];
+        let next = ConvexCellTet::new(
+            self.projections_on_plane[self.cur_tet_idx],
+            self.projections_on_plane[self.cur_tet_idx + 1],
+            self.cur_vertex.loc,
+            plane_idx,
+            plane.right_idx,
+            plane.normal(),
+            plane.shift,
+        );
+
+        self.cur_tet_idx += 1;
+        if self.cur_tet_idx == 2 {
+            self.cur_tet_idx = 0;
+            self.cur_plane_idx += 1;
+            if self.cur_plane_idx < 3 {
+                self.load_plane();
+            } else {
+                self.cur_plane_idx = 0;
+                self.cur_vertex_idx += 1;
+                if self.cur_vertex_idx < self.convex_cell.vertices.len() {
+                    self.load_vertex();
+                }
+            }
+        }
+        Some(next)
+    }
+}
+
+#[derive(Clone, Debug)]
 pub(super) struct ConvexCell {
     pub loc: DVec3,
     pub clipping_planes: Vec<HalfSpace>,
@@ -85,7 +198,7 @@ impl ConvexCell {
     }
 
     /// Build the Convex cell by repeatedly intersecting it with the appropriate half spaces
-    pub(super) fn build(
+    pub fn build(
         &mut self,
         generators: &[Generator],
         mut nearest_neighbours: Box<dyn Iterator<Item = (usize, Option<DVec3>)> + '_>,
@@ -119,6 +232,10 @@ impl ConvexCell {
             let p = 0.5 * (self.loc + ngb_loc);
             self.clip_by_plane(HalfSpace::new(n, p, Some(idx), shift), dimensionality);
         }
+    }
+
+    pub fn decompose(&self) -> ConvexCellDecomposition {
+        ConvexCellDecomposition::new(self)
     }
 
     pub fn clip_by_plane(&mut self, p: HalfSpace, dimensionality: Dimensionality) {
@@ -167,7 +284,11 @@ impl ConvexCell {
     }
 
     fn compute_boundary(boundary: &mut SimpleCycle, vertices: &mut [Vertex]) {
-        boundary.init(vertices[0].dual.0, vertices[0].dual.1, vertices[0].dual.2);
+        boundary.init(
+            vertices[0].dual[0],
+            vertices[0].dual[1],
+            vertices[0].dual[2],
+        );
 
         for i in 1..vertices.len() {
             // Look for a suitable next vertex to extend the boundary
@@ -178,7 +299,7 @@ impl ConvexCell {
                     "No suitable vertex found to extend boundary!"
                 );
                 let vertex = &vertices[idx].dual;
-                match boundary.try_extend(vertex.0, vertex.1, vertex.2) {
+                match boundary.try_extend(vertex[0], vertex[1], vertex[2]) {
                     Ok(()) => {
                         if idx > i {
                             vertices.swap(i, idx);
@@ -201,6 +322,24 @@ impl ConvexCell {
 
         // Update safety radius
         self.safety_radius = 2. * max_dist_2.sqrt();
+    }
+
+    pub fn compute_face_integrals<T: VoronoiIntegrator + Clone>(
+        &self,
+        integrator: T,
+    ) -> Vec<T::Output> {
+        // Compute integrals from decomposition of convex cell
+        let mut integrals = vec![None; self.clipping_planes.len()];
+        for tet in self.decompose() {
+            let integral = &mut integrals[tet.plane_idx];
+            let integral = integral.get_or_insert_with(|| integrator.clone());
+            integral.collect(tet.vertices[0], tet.vertices[1], tet.vertices[2], self.loc);
+        }
+
+        integrals
+            .into_iter()
+            .filter_map(|maybe_integral| maybe_integral.map(|integral| integral.finalize()))
+            .collect()
     }
 }
 

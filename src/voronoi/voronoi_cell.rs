@@ -1,43 +1,18 @@
 use glam::DVec3;
 
-use crate::{
-    geometry::Plane,
-    integrators::{VolumeCentroidIntegrator, VoronoiCellIntegrator},
-    util::GetMutMultiple,
-    voronoi::{
-        half_space::HalfSpace,
-        voronoi_face::{VoronoiFace, VoronoiFaceBuilder},
-        Voronoi,
-    },
+use crate::voronoi::{
+    voronoi_face::{VoronoiFace, VoronoiFaceBuilder},
+    Voronoi,
 };
 
-use super::{convex_cell::ConvexCell, Dimensionality};
-
-struct VoronoiCellBuilder {
-    loc: DVec3,
-    volume_centroid: VolumeCentroidIntegrator,
-}
-
-impl VoronoiCellBuilder {
-    fn new(loc: DVec3) -> Self {
-        Self {
-            loc,
-            volume_centroid: VolumeCentroidIntegrator::init(),
-        }
-    }
-
-    fn extend(&mut self, v0: DVec3, v1: DVec3, v2: DVec3) {
-        self.volume_centroid.collect(v0, v1, v2, self.loc);
-    }
-
-    fn build(self) -> VoronoiCell {
-        let (volume, centroid) = self.volume_centroid.finalize();
-        VoronoiCell::init(self.loc, centroid, volume)
-    }
-}
+use super::{
+    convex_cell::ConvexCell,
+    integrators::{VolumeCentroidIntegrator, VoronoiIntegrator},
+    Dimensionality,
+};
 
 /// A Voronoi cell.
-#[derive(Default, Debug, Clone, Copy)]
+#[derive(Default, Debug, Clone)]
 pub struct VoronoiCell {
     loc: DVec3,
     centroid: DVec3,
@@ -68,96 +43,68 @@ impl VoronoiCell {
     ) -> Self {
         let idx = convex_cell.idx;
         let loc = convex_cell.loc;
-        let mut cell = VoronoiCellBuilder::new(loc);
+        let mut volume_centroid_integral = VolumeCentroidIntegrator::init();
 
         let mut maybe_faces: Vec<Option<VoronoiFaceBuilder>> =
             (0..convex_cell.clipping_planes.len())
                 .map(|_| None)
                 .collect();
 
-        fn maybe_init_face<'a>(
-            maybe_face: &mut Option<VoronoiFaceBuilder<'a>>,
-            half_space: &'a HalfSpace,
+        fn maybe_init_face(
+            maybe_face: &mut Option<VoronoiFaceBuilder>,
+            normal: DVec3,
             left_idx: usize,
+            right_idx: Option<usize>,
             left_loc: DVec3,
+            shift: Option<DVec3>,
             mask: Option<&[bool]>,
             dimensionality: Dimensionality,
         ) {
-            let should_construct_face = match half_space {
+            let should_construct_face = match (right_idx, shift) {
                 // Don't construct non-boundary faces twice.
-                HalfSpace {
-                    right_idx: Some(right_idx),
-                    shift: None,
-                    plane: Plane { n, .. },
-                    ..
-                } => {
+                (Some(right_idx), None) => {
                     // Only construct face if:
                     // - normal has right dimensionality
                     // - other neighbour has not been treated yet or is inactive
-                    dimensionality.vector_is_valid(*n)
-                        && (*right_idx > left_idx || mask.map_or(false, |mask| !mask[*right_idx]))
+                    dimensionality.vector_is_valid(normal)
+                        && (right_idx > left_idx || mask.map_or(false, |mask| !mask[right_idx]))
                 }
                 _ => true,
             };
             if should_construct_face {
-                maybe_face.get_or_insert(VoronoiFaceBuilder::new(left_idx, left_loc, half_space));
+                maybe_face.get_or_insert(VoronoiFaceBuilder::new(
+                    left_idx, left_loc, right_idx, shift, normal,
+                ));
             }
         }
 
-        // Loop over vertices and compute the necessary integrals/barycenter calculations
-        for vertex in &convex_cell.vertices {
-            // Initialize these faces
-            let face_idx_0 = vertex.dual.0;
-            let face_idx_1 = vertex.dual.1;
-            let face_idx_2 = vertex.dual.2;
-            let half_space_0 = &convex_cell.clipping_planes[face_idx_0];
-            let half_space_1 = &convex_cell.clipping_planes[face_idx_1];
-            let half_space_2 = &convex_cell.clipping_planes[face_idx_2];
-            let (maybe_face_0, maybe_face_1, maybe_face_2) =
-                maybe_faces.get_3_mut(face_idx_0, face_idx_1, face_idx_2);
-            maybe_init_face(maybe_face_0, half_space_0, idx, loc, mask, dimensionality);
-            maybe_init_face(maybe_face_1, half_space_1, idx, loc, mask, dimensionality);
-            maybe_init_face(maybe_face_2, half_space_2, idx, loc, mask, dimensionality);
+        // Loop over the decomposition of this convex cell into tetrahedra to compute the necessary integrals/barycenter calculations
+        for tet in convex_cell.decompose() {
+            // Update the volume and centroid of the cell
+            volume_centroid_integral.collect(
+                tet.vertices[0],
+                tet.vertices[1],
+                tet.vertices[2],
+                loc,
+            );
 
-            // Project generator on planes
-            let plane_0 = &half_space_0.plane;
-            let plane_1 = &half_space_1.plane;
-            let plane_2 = &half_space_2.plane;
-            let g_on_p0 = plane_0.project_onto(loc);
-            let g_on_p1 = plane_1.project_onto(loc);
-            let g_on_p2 = plane_2.project_onto(loc);
-
-            // Project generator on edges between planes
-            let g_on_p01 = plane_0.project_onto_intersection(&plane_1, loc);
-            let g_on_p02 = plane_0.project_onto_intersection(&plane_2, loc);
-            let g_on_p12 = plane_1.project_onto_intersection(&plane_2, loc);
-
-            // Project generator on vertex determined by planes
-            let g_on_p012 = vertex.loc;
-
-            // Calculate signed volumes of tetrahedra
-            cell.extend(g_on_p012, g_on_p01, g_on_p0);
-            cell.extend(g_on_p012, g_on_p0, g_on_p02);
-            cell.extend(g_on_p012, g_on_p1, g_on_p01);
-            cell.extend(g_on_p012, g_on_p12, g_on_p1);
-            cell.extend(g_on_p012, g_on_p02, g_on_p2);
-            cell.extend(g_on_p012, g_on_p2, g_on_p12);
-
-            // Calculate the signed areas of the triangles on the faces and update their barycenters
-            maybe_face_0.as_mut().map(|f| {
-                f.extend(g_on_p012, g_on_p01, g_on_p0);
-                f.extend(g_on_p012, g_on_p0, g_on_p02);
-            });
-            maybe_face_1.as_mut().map(|f| {
-                f.extend(g_on_p012, g_on_p1, g_on_p01);
-                f.extend(g_on_p012, g_on_p12, g_on_p1);
-            });
-            maybe_face_2.as_mut().map(|f| {
-                f.extend(g_on_p012, g_on_p02, g_on_p2);
-                f.extend(g_on_p012, g_on_p2, g_on_p12);
-            });
+            // Initialize a new face if necessary
+            let maybe_face = &mut maybe_faces[tet.plane_idx];
+            maybe_init_face(
+                maybe_face,
+                tet.normal,
+                idx,
+                tet.right_idx,
+                loc,
+                tet.shift,
+                mask,
+                dimensionality,
+            );
+            // Update this face's area and centroid if necessary
+            if let Some(face) = maybe_face {
+                face.extend(tet.vertices[0], tet.vertices[1], tet.vertices[2])
+            }
         }
-
         // Filter out uninitialized faces and finalize the rest
         for maybe_face in maybe_faces {
             if let Some(face) = maybe_face {
@@ -165,7 +112,9 @@ impl VoronoiCell {
             }
         }
 
-        cell.build()
+        let (volume, centroid) = volume_centroid_integral.finalize();
+
+        VoronoiCell::init(loc, centroid, volume)
     }
 
     pub(super) fn finalize(&mut self, face_connections_offset: usize, face_count: usize) {
@@ -214,7 +163,7 @@ impl VoronoiCell {
 
 #[cfg(test)]
 mod test {
-    use crate::voronoi::boundary::SimulationBoundary;
+    use crate::voronoi::{boundary::SimulationBoundary, half_space::HalfSpace};
 
     use super::*;
 

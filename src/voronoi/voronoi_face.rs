@@ -1,43 +1,47 @@
 use glam::DVec3;
 
-use crate::integrators::{AreaCentroidIntegrator, VoronoiFaceIntegrator};
+use super::integrators::{AreaCentroidIntegrator, VoronoiIntegrator};
 
-use super::half_space::HalfSpace;
-
-pub(super) struct VoronoiFaceBuilder<'a> {
+pub(super) struct VoronoiFaceBuilder {
     left_idx: usize,
     left_loc: DVec3,
-    right_loc: DVec3,
-    half_space: &'a HalfSpace,
+    right_idx: Option<usize>,
+    shift: Option<DVec3>,
+    normal: DVec3,
     area_centroid: AreaCentroidIntegrator,
 }
 
-impl<'a> VoronoiFaceBuilder<'a> {
-    pub fn new(left_idx: usize, left_loc: DVec3, half_space: &'a HalfSpace) -> Self {
-        let half_loc = half_space.project_onto(left_loc);
+impl VoronoiFaceBuilder {
+    pub(super) fn new(
+        left_idx: usize,
+        left_loc: DVec3,
+        right_idx: Option<usize>,
+        shift: Option<DVec3>,
+        normal: DVec3,
+    ) -> Self {
         Self {
             left_idx,
             left_loc,
-            right_loc: 2. * half_loc - left_loc,
-            half_space,
+            right_idx,
+            shift,
+            normal,
             area_centroid: AreaCentroidIntegrator::init(),
         }
     }
 
     pub fn extend(&mut self, v0: DVec3, v1: DVec3, v2: DVec3) {
-        self.area_centroid
-            .collect(v0, v1, v2, self.left_loc, self.right_loc);
+        self.area_centroid.collect(v0, v1, v2, self.left_loc);
     }
 
     pub fn build(&self) -> VoronoiFace {
         let (area, centroid) = self.area_centroid.finalize();
         VoronoiFace::new(
             self.left_idx,
-            self.half_space.right_idx,
+            self.right_idx,
             area,
             centroid,
-            -self.half_space.normal(),
-            self.half_space.shift,
+            -self.normal,
+            self.shift,
         )
     }
 }

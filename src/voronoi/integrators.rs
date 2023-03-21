@@ -2,11 +2,11 @@ use glam::DVec3;
 
 use crate::util::{signed_area_tri, signed_volume_tet};
 
-/// Trait to implement new integrators for cell integrals
-pub trait VoronoiCellIntegrator {
+/// Trait to implement new integrators for Voronoi cells/faces
+pub trait VoronoiIntegrator {
     type Output;
 
-    /// Update the state of a cells integrator using one oriented tetrahedron (with `gen` as top),
+    /// Update the state of the integrator using one oriented tetrahedron (with the cell's generator `gen` as top),
     /// which is part of a cell.
     fn collect(&mut self, v0: DVec3, v1: DVec3, v2: DVec3, gen: DVec3);
 
@@ -14,31 +14,11 @@ pub trait VoronoiCellIntegrator {
     fn finalize(&self) -> Self::Output;
 }
 
-pub trait VectorVoronoiCellIntegrator: VoronoiCellIntegrator<Output = DVec3> {}
+pub trait VectorVoronoiIntegrator: VoronoiIntegrator<Output = DVec3> {}
+impl<T: VoronoiIntegrator<Output = DVec3>> VectorVoronoiIntegrator for T {}
 
-impl<T: VoronoiCellIntegrator<Output = DVec3>> VectorVoronoiCellIntegrator for T {}
-pub trait ScalarVoronoiCellIntegrator: VoronoiCellIntegrator<Output = f64> {}
-
-impl<T: VoronoiCellIntegrator<Output = f64>> ScalarVoronoiCellIntegrator for T {}
-
-/// Trait to implement additional integrals over faces.
-pub trait VoronoiFaceIntegrator {
-    type Output;
-
-    /// Update the state of a face's integrator using an oriented triangle
-    /// and the postion of the generators to the left and right of this face.
-    fn collect(&mut self, v0: DVec3, v1: DVec3, v2: DVec3, left: DVec3, right: DVec3);
-
-    /// Finalize the calculation and return the result
-    fn finalize(&self) -> Self::Output;
-}
-
-pub trait VectorVoronoiFaceIntegrator: VoronoiFaceIntegrator<Output = DVec3> {}
-
-impl<T: VoronoiFaceIntegrator<Output = DVec3>> VectorVoronoiFaceIntegrator for T {}
-pub trait ScalarVoronoiFaceIntegrator: VoronoiFaceIntegrator<Output = f64> {}
-
-impl<T: VoronoiFaceIntegrator<Output = f64>> ScalarVoronoiFaceIntegrator for T {}
+pub trait ScalarVoronoiIntegrator: VoronoiIntegrator<Output = f64> {}
+impl<T: VoronoiIntegrator<Output = f64>> ScalarVoronoiIntegrator for T {}
 
 #[derive(Default)]
 pub struct VolumeCentroidIntegrator {
@@ -55,7 +35,7 @@ impl VolumeCentroidIntegrator {
     }
 }
 
-impl VoronoiCellIntegrator for VolumeCentroidIntegrator {
+impl VoronoiIntegrator for VolumeCentroidIntegrator {
     type Output = (f64, DVec3);
 
     fn collect(&mut self, v0: DVec3, v1: DVec3, v2: DVec3, gen: DVec3) {
@@ -89,11 +69,11 @@ impl AreaCentroidIntegrator {
     }
 }
 
-impl VoronoiFaceIntegrator for AreaCentroidIntegrator {
+impl VoronoiIntegrator for AreaCentroidIntegrator {
     type Output = (f64, DVec3);
 
-    fn collect(&mut self, v0: DVec3, v1: DVec3, v2: DVec3, left: DVec3, _right: DVec3) {
-        let area = signed_area_tri(v0, v1, v2, left);
+    fn collect(&mut self, v0: DVec3, v1: DVec3, v2: DVec3, gen: DVec3) {
+        let area = signed_area_tri(v0, v1, v2, gen);
         self.area += area;
         self.centroid += area * (v0 + v1 + v2);
     }

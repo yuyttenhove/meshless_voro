@@ -1,4 +1,4 @@
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct SimpleCycle {
     ptrs: Vec<usize>,
     start: usize,
