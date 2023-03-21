@@ -1,30 +1,23 @@
 use glam::DVec3;
 
-use super::integrators::{AreaCentroidIntegrator, VoronoiIntegrator};
+use super::{
+    half_space::HalfSpace,
+    integrators::{AreaCentroidIntegrator, VoronoiIntegrator},
+};
 
-pub(super) struct VoronoiFaceBuilder {
+pub(super) struct VoronoiFaceBuilder<'a> {
     left_idx: usize,
     left_loc: DVec3,
-    right_idx: Option<usize>,
-    shift: Option<DVec3>,
-    normal: DVec3,
+    half_space: &'a HalfSpace,
     area_centroid: AreaCentroidIntegrator,
 }
 
-impl VoronoiFaceBuilder {
-    pub(super) fn new(
-        left_idx: usize,
-        left_loc: DVec3,
-        right_idx: Option<usize>,
-        shift: Option<DVec3>,
-        normal: DVec3,
-    ) -> Self {
+impl<'a> VoronoiFaceBuilder<'a> {
+    pub(super) fn new(left_idx: usize, left_loc: DVec3, half_space: &'a HalfSpace) -> Self {
         Self {
             left_idx,
             left_loc,
-            right_idx,
-            shift,
-            normal,
+            half_space,
             area_centroid: AreaCentroidIntegrator::init(),
         }
     }
@@ -37,11 +30,11 @@ impl VoronoiFaceBuilder {
         let (area, centroid) = self.area_centroid.finalize();
         VoronoiFace::new(
             self.left_idx,
-            self.right_idx,
+            self.half_space.right_idx,
             area,
             centroid,
-            -self.normal,
-            self.shift,
+            -self.half_space.normal(),
+            self.half_space.shift,
         )
     }
 }

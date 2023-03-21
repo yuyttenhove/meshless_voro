@@ -1,8 +1,12 @@
 use glam::DVec3;
 
-use crate::voronoi::{
-    voronoi_face::{VoronoiFace, VoronoiFaceBuilder},
-    Voronoi,
+use crate::{
+    geometry::Plane,
+    voronoi::{
+        half_space::HalfSpace,
+        voronoi_face::{VoronoiFace, VoronoiFaceBuilder},
+        Voronoi,
+    },
 };
 
 use super::{
@@ -50,31 +54,34 @@ impl VoronoiCell {
                 .map(|_| None)
                 .collect();
 
-        fn maybe_init_face(
-            maybe_face: &mut Option<VoronoiFaceBuilder>,
-            normal: DVec3,
+        fn maybe_init_face<'a, 'b>(
+            maybe_face: &'a mut Option<VoronoiFaceBuilder<'b>>,
             left_idx: usize,
-            right_idx: Option<usize>,
             left_loc: DVec3,
-            shift: Option<DVec3>,
+            half_space: &'b HalfSpace,
             mask: Option<&[bool]>,
             dimensionality: Dimensionality,
-        ) {
-            let should_construct_face = match (right_idx, shift) {
+        ) where
+            'b: 'a,
+        {
+            let should_construct_face = match half_space {
                 // Don't construct non-boundary faces twice.
-                (Some(right_idx), None) => {
+                HalfSpace {
+                    right_idx: Some(right_idx),
+                    shift: None,
+                    plane: Plane { n, .. },
+                    ..
+                } => {
                     // Only construct face if:
                     // - normal has right dimensionality
                     // - other neighbour has not been treated yet or is inactive
-                    dimensionality.vector_is_valid(normal)
-                        && (right_idx > left_idx || mask.map_or(false, |mask| !mask[right_idx]))
+                    dimensionality.vector_is_valid(*n)
+                        && (*right_idx > left_idx || mask.map_or(false, |mask| !mask[*right_idx]))
                 }
                 _ => true,
             };
             if should_construct_face {
-                maybe_face.get_or_insert(VoronoiFaceBuilder::new(
-                    left_idx, left_loc, right_idx, shift, normal,
-                ));
+                maybe_face.get_or_insert(VoronoiFaceBuilder::new(left_idx, left_loc, half_space));
             }
         }
 
@@ -92,11 +99,9 @@ impl VoronoiCell {
             let maybe_face = &mut maybe_faces[tet.plane_idx];
             maybe_init_face(
                 maybe_face,
-                tet.normal,
                 idx,
-                tet.right_idx,
                 loc,
-                tet.shift,
+                &convex_cell.clipping_planes[tet.plane_idx],
                 mask,
                 dimensionality,
             );
