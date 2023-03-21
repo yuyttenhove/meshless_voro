@@ -341,6 +341,17 @@ impl ConvexCell {
             .filter_map(|maybe_integral| maybe_integral.map(|integral| integral.finalize()))
             .collect()
     }
+
+    pub fn compute_cell_integral<T: VoronoiIntegrator>(
+        &self,
+        mut integrator: T,
+    ) -> T::Output {
+        // Compute integral from decomposition of convex cell
+        for tet in self.decompose() {
+            integrator.collect(tet.vertices[0], tet.vertices[1], tet.vertices[2], self.loc);
+        }
+        integrator.finalize()
+    }
 }
 
 impl From<ConvexCellAlternative> for ConvexCell {

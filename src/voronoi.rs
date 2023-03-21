@@ -417,7 +417,7 @@ impl Voronoi {
         self.periodic
     }
 
-    /// Compute extra integrals over the faces of a certain VoronoiCell.
+    /// Compute an extra integral over the faces of a certain VoronoiCell.
     pub fn compute_face_integrals<T: VoronoiIntegrator + Clone>(
         &self,
         integrator: T,
@@ -431,6 +431,22 @@ impl Voronoi {
             .as_ref()
             .expect("Cannot compute integrals for uninitialized face!");
         convex_cell.compute_face_integrals(integrator)
+    }
+
+    /// Compute an extra integral over a certain `VoronoiCell`.
+    pub fn compute_cell_integral<T: VoronoiIntegrator>(
+        &self,
+        integrator: T,
+        id: usize,
+    ) -> T::Output {
+        // Reconstruct convex cell from neighbours
+        let convex_cells = self.convex_cells.as_ref().expect(
+            "Cannot compute integrals if the intermediate representation has not been saved!",
+        );
+        let convex_cell = convex_cells[id]
+            .as_ref()
+            .expect("Cannot compute integrals for uninitialized face!");
+        convex_cell.compute_cell_integral(integrator)
     }
 
     /// For all cells, check that the area of the faces is larger than the area of a sphere with the same volume
