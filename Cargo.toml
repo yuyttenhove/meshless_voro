@@ -16,6 +16,7 @@ glam = { version="0.23" }
 rstar = "0.10"
 rayon = { version = "1.7", optional = true }
 hdf5 = { version = "0.8", optional = true }
+rug = "1.19.1"
 
 [features]
 rayon = ["dep:rayon"]

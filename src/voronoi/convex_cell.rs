@@ -1,6 +1,9 @@
 use glam::DVec3;
 
-use crate::{geometry::intersect_planes, simple_cycle::SimpleCycle};
+use crate::{
+    geometry::{in_sphere_test_exact, intersect_planes},
+    simple_cycle::SimpleCycle,
+};
 
 use super::{
     boundary::SimulationBoundary, convex_cell_alternative::ConvexCell as ConvexCellAlternative,
@@ -134,11 +137,11 @@ impl ConvexCell {
     pub fn init(
         loc: DVec3,
         idx: usize,
-        simulation_volume: &SimulationBoundary,
-        dimensionality: Dimensionality,
+        simulation_boundary: &SimulationBoundary,
     ) -> Self {
-        let clipping_planes = simulation_volume.clipping_planes.clone();
+        let clipping_planes = simulation_boundary.clipping_planes.clone();
 
+        let dimensionality = simulation_boundary.dimensionality;
         let vertices = vec![
             Vertex::from_dual(2, 5, 0, &clipping_planes, loc, dimensionality),
             Vertex::from_dual(5, 3, 0, &clipping_planes, loc, dimensionality),
@@ -164,18 +167,21 @@ impl ConvexCell {
 
     /// Build the Convex cell by repeatedly intersecting it with the appropriate half spaces
     pub fn build(
-        &mut self,
+        loc: DVec3,
+        idx: usize,
         generators: &[Generator],
         mut nearest_neighbours: Box<dyn Iterator<Item = (usize, Option<DVec3>)> + '_>,
-        dimensionality: Dimensionality,
-    ) {
+        simulation_boundary: &SimulationBoundary,
+    ) -> Self {
+
+        let mut cell = ConvexCell::init(loc, idx, simulation_boundary);
         // skip the first nearest neighbour (will be this cell)
         assert_eq!(
             nearest_neighbours
                 .next()
                 .expect("Nearest neighbours cannot be empty!")
                 .0,
-            self.idx,
+            cell.idx,
             "First nearest neighbour should be the generator itself!"
         );
         // now loop over the nearest neighbours and clip this cell until the safety radius is reached
@@ -187,29 +193,54 @@ impl ConvexCell {
             } else {
                 ngb_loc = generator.loc();
             }
-            let dx = self.loc - ngb_loc;
+            let dx = cell.loc - ngb_loc;
             let dist = dx.length();
             assert!(dist.is_finite() && dist > 0.0, "Degenerate point set!");
-            if self.safety_radius < dist {
-                return;
+            if cell.safety_radius < dist {
+                return cell;
             }
             let n = dx / dist;
-            let p = 0.5 * (self.loc + ngb_loc);
-            self.clip_by_plane(HalfSpace::new(n, p, Some(idx), shift), dimensionality);
+            let p = 0.5 * (cell.loc + ngb_loc);
+            cell.clip_by_plane(
+                HalfSpace::new(n, p, Some(idx), shift),
+                generators,
+                simulation_boundary,
+            );
         }
+
+        cell
     }
 
     pub fn decompose(&self) -> ConvexCellDecomposition {
         ConvexCellDecomposition::new(self)
     }
 
-    pub fn clip_by_plane(&mut self, p: HalfSpace, dimensionality: Dimensionality) {
+    pub fn clip_by_plane(
+        &mut self,
+        p: HalfSpace,
+        generators: &[Generator],
+        simulation_boundary: &SimulationBoundary,
+    ) {
         // loop over vertices and remove the ones clipped by p
         let mut i = 0;
         let mut num_v = self.vertices.len();
         let mut num_r = 0;
         while i < num_v {
-            if p.clips(self.vertices[i].loc) {
+            let mut clip = p.clip(self.vertices[i].loc);
+            if clip == 0. {
+                // Do the equivalent in-sphere test to determine whether a vertex is clipped
+                let dual = self.vertices[i].dual;
+                let a = simulation_boundary.iloc(self.loc);
+                let b = simulation_boundary
+                    .iloc(self.clipping_planes[dual[0]].right_loc(self.idx, generators));
+                let c = simulation_boundary
+                    .iloc(self.clipping_planes[dual[1]].right_loc(self.idx, generators));
+                let d = simulation_boundary
+                    .iloc(self.clipping_planes[dual[2]].right_loc(self.idx, generators));
+                let v = simulation_boundary.iloc(p.right_loc(self.idx, generators));
+                clip = in_sphere_test_exact(&a, &b, &c, &d, &v);
+            }
+            if clip < 0. {
                 num_v -= 1;
                 num_r += 1;
                 self.vertices.swap(i, num_v);
@@ -240,7 +271,7 @@ impl ConvexCell {
                     p_idx,
                     &self.clipping_planes,
                     self.loc,
-                    dimensionality,
+                    simulation_boundary.dimensionality,
                 ));
                 cur = next;
             }

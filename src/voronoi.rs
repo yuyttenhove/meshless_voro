@@ -276,9 +276,13 @@ impl Voronoi {
                 } else {
                     nn_iter(&rtree, loc)
                 };
-                let mut convex_cell =
-                    ConvexCell::init(loc, idx, &simulation_volume, dimensionality);
-                convex_cell.build(&generators, nearest_neighbours, dimensionality);
+                let convex_cell = ConvexCell::build(
+                    loc,
+                    idx,
+                    &generators,
+                    nearest_neighbours,
+                    &simulation_volume,
+                );
                 VoronoiCell::from_convex_cell(&convex_cell, faces, mask, dimensionality)
             } else {
                 VoronoiCell::default()
@@ -326,9 +330,13 @@ impl Voronoi {
                 } else {
                     nn_iter(&rtree, loc)
                 };
-                let mut convex_cell =
-                    ConvexCell::init(loc, idx, &simulation_volume, dimensionality);
-                convex_cell.build(&generators, nearest_neighbours, dimensionality);
+                let convex_cell = ConvexCell::build(
+                    loc,
+                    idx,
+                    &generators,
+                    nearest_neighbours,
+                    &simulation_volume,
+                );
                 Some(convex_cell)
             } else {
                 None
@@ -455,7 +463,12 @@ impl Voronoi {
         use float_cmp::assert_approx_eq;
 
         let mut total_volume = 0.;
+        let mut all_active = true;
         for cell in self.cells() {
+            if cell.volume() == 0. {
+                all_active = false;
+                continue;
+            }
             let faces = cell.faces(self);
             let area: f64 = faces.map(|f| f.area()).sum();
             let radius = (0.25 * 3. * std::f64::consts::FRAC_1_PI * cell.volume()).powf(1. / 3.);
@@ -463,8 +476,16 @@ impl Voronoi {
             assert!(area > sphere_area);
             total_volume += cell.volume();
         }
-        let box_volume = self.width.x * self.width.y * self.width.z;
-        assert_approx_eq!(f64, total_volume, box_volume, epsilon = 1e-12, ulps = 8);
+        if all_active {
+            let box_volume = self.width.x * self.width.y * self.width.z;
+            assert_approx_eq!(
+                f64,
+                total_volume,
+                box_volume,
+                epsilon = box_volume * 1e-13,
+                ulps = 4
+            );
+        }
     }
 
     /// Save the Voronoi tesselation to a hdf5 file. Requires the `hdf5` feature to be enabled.
@@ -880,6 +901,28 @@ mod test {
         voronoi.save("test_density_grad_2_d.hdf5").unwrap();
 
         assert_eq!(voronoi.voronoi_cells.len(), plane.len());
+        voronoi.consistency_check();
+    }
+
+    #[test]
+    fn degenerate_test() {
+        let anchor = DVec3::ZERO;
+        let width = DVec3::splat(2e15);
+        let mut generators = perturbed_grid(anchor, width, 10, 0.);
+        generators[42] = 1e14 * DVec3::new(1.00007490802, 9.00019014286, 5.00014639879);
+        let voronoi = Voronoi::build(&generators, anchor, width, 3, false, false);
+        voronoi.consistency_check();
+    }
+
+    #[test]
+    fn degenerate_test_simplified() {
+        let anchor = DVec3::new(0., 6e14, 2e14);
+        let width = DVec3::splat(6e14);
+        let mut generators = perturbed_grid(anchor, width, 3, 0.);
+        generators[4] = 1e14 * DVec3::new(1.00007490802, 9.00019014286, 5.00014639879);
+        let mut mask = [false; 27];
+        mask[3] = true;
+        let voronoi = Voronoi::build_partial(&generators, &mask, anchor, width, 3, false, false);
         voronoi.consistency_check();
     }
 }

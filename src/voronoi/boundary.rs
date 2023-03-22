@@ -4,6 +4,9 @@ use super::{half_space::HalfSpace, Dimensionality};
 
 #[derive(Clone)]
 pub(super) struct SimulationBoundary {
+    anchor: DVec3,
+    inverse_width: DVec3,
+    pub dimensionality: Dimensionality,
     pub clipping_planes: Vec<HalfSpace>,
 }
 
@@ -37,6 +40,19 @@ impl SimulationBoundary {
             HalfSpace::new(DVec3::NEG_Z, anchor + width, None, None),
         ];
 
-        Self { clipping_planes }
+        Self {
+            anchor,
+            inverse_width: 1. / width,
+            dimensionality,
+            clipping_planes,
+        }
+    }
+
+    pub fn iloc(&self, loc: DVec3) -> [i64; 3] {
+        // Rescale the coordinates to fall within [1, 2):
+        let loc = DVec3::splat(1.) + (loc - self.anchor) * self.inverse_width;
+        // convert to bits, only mantissa should have nonzero bits at this point, 
+        // so these numbers can be interpreted as rescaled u64 integer coordinates
+        [loc.x.to_bits() as i64, loc.y.to_bits() as i64, loc.z.to_bits() as i64]
     }
 }

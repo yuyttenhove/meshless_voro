@@ -1,4 +1,5 @@
 use glam::{DMat3, DMat4, DVec3, DVec4};
+use rug::{Assign, Integer};
 
 #[derive(Clone, Debug)]
 pub(crate) struct Plane {
@@ -171,6 +172,73 @@ pub fn in_sphere_test(a: DVec3, b: DVec3, c: DVec3, d: DVec3, v: DVec3) -> f64 {
     let v = (v - a).extend((v - a).length_squared());
 
     DMat4::from_cols(b, c, d, v).determinant()
+}
+
+macro_rules! big_int {
+    ($a:expr, $b:expr) => {{
+        let mut big_int_diff = [
+            Integer::from($a[0] - $b[0]),
+            Integer::from($a[0] - $b[1]),
+            Integer::from($a[0] - $b[2]),
+            Integer::new(),
+        ];
+        let mut norm2 = Integer::new();
+        norm2 += &big_int_diff[0] * &big_int_diff[0];
+        norm2 += &big_int_diff[1] * &big_int_diff[1];
+        norm2 += &big_int_diff[2] * &big_int_diff[2];
+        big_int_diff[3] = norm2;
+        big_int_diff
+    }};
+}
+
+macro_rules! big_int_det2x2 {
+    ($a:expr, $b:expr, $c:expr, $d:expr, $det:expr) => {{
+        $det.assign(0);
+        $det += &$a * &$d;
+        $det -= &$b * &$c;
+    }};
+}
+
+macro_rules! big_int_det3x3 {
+    ($a0:expr, $a1:expr, $a2:expr, $b0:expr, $b1:expr, $b2:expr, $c0:expr, $c1:expr, $c2:expr, $tmp:expr, $det:expr) => {
+        $det.assign(0);
+        big_int_det2x2!($b1, $b2, $c1, $c2, $tmp);
+        $det += &$a0 * &$tmp;
+        big_int_det2x2!($b0, $b2, $c0, $c2, $tmp);
+        $det -= &$a1 * &$tmp;
+        big_int_det2x2!($b0, $b1, $c0, $c1, $tmp);
+        $det += &$a2 * &$tmp;
+    };
+}
+
+/// Test whether `v` lies inside or outside the circumsphere around `a`, `b`, `c` and `d` using
+/// exact integer arithmatic.
+pub fn in_sphere_test_exact(a: &[i64], b: &[i64], c: &[i64], d: &[i64], v: &[i64]) -> f64 {
+    let b = big_int!(b, a);
+    let c = big_int!(c, a);
+    let d = big_int!(d, a);
+    let v = big_int!(v, a);
+
+    // We need to compute the sign of the 4x4 determinant with b, c, d, v as rows.
+    let mut determinant = Integer::new();
+
+    // Let's do it in 4 steps by developing over the last column
+    // Step 1 (b-row):
+    let mut tmp1 = Integer::new();
+    let mut det = Integer::new();
+    big_int_det3x3!(c[0], c[1], c[2], d[0], d[1], d[2], v[0], v[1], v[2], tmp1, det);
+    determinant += &b[3] * &det;
+    // Step 2 (c-row)
+    big_int_det3x3!(b[0], b[1], b[2], d[0], d[1], d[2], v[0], v[1], v[2], tmp1, det);
+    determinant -= &c[3] * &det;
+    // Step 3 (d-row)
+    big_int_det3x3!(b[0], b[1], b[2], c[0], c[1], c[2], v[0], v[1], v[2], tmp1, det);
+    determinant += &d[3] * &det;
+    // Step 4 (v-row)
+    big_int_det3x3!(b[0], b[1], b[2], c[0], c[1], c[2], d[0], d[1], d[2], tmp1, det);
+    determinant -= &v[3] * &det;
+
+    determinant.signum().to_f64()
 }
 
 #[derive(Clone)]
