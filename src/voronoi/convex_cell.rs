@@ -134,11 +134,7 @@ pub(super) struct ConvexCell {
 
 impl ConvexCell {
     /// Initialize each voronoi cell as the bounding box of the simulation volume.
-    pub fn init(
-        loc: DVec3,
-        idx: usize,
-        simulation_boundary: &SimulationBoundary,
-    ) -> Self {
+    pub fn init(loc: DVec3, idx: usize, simulation_boundary: &SimulationBoundary) -> Self {
         let clipping_planes = simulation_boundary.clipping_planes.clone();
 
         let dimensionality = simulation_boundary.dimensionality;
@@ -173,7 +169,6 @@ impl ConvexCell {
         mut nearest_neighbours: Box<dyn Iterator<Item = (usize, Option<DVec3>)> + '_>,
         simulation_boundary: &SimulationBoundary,
     ) -> Self {
-
         let mut cell = ConvexCell::init(loc, idx, simulation_boundary);
         // skip the first nearest neighbour (will be this cell)
         assert_eq!(

@@ -43,47 +43,41 @@ impl VoronoiCell {
         convex_cell: &'a ConvexCell,
         faces: &mut Vec<VoronoiFace>,
         mask: Option<&[bool]>,
+        build_all_faces: bool,
         dimensionality: Dimensionality,
     ) -> Self {
         let idx = convex_cell.idx;
         let loc = convex_cell.loc;
         let mut volume_centroid_integral = VolumeCentroidIntegrator::init();
 
-        let mut maybe_faces: Vec<Option<VoronoiFaceBuilder>> =
+        let mut maybe_faces: Vec<Option<VoronoiFaceBuilder<'a>>> =
             (0..convex_cell.clipping_planes.len())
                 .map(|_| None)
                 .collect();
 
-        fn maybe_init_face<'a, 'b>(
-            maybe_face: &'a mut Option<VoronoiFaceBuilder<'b>>,
-            left_idx: usize,
-            left_loc: DVec3,
-            half_space: &'b HalfSpace,
-            mask: Option<&[bool]>,
-            dimensionality: Dimensionality,
-        ) where
-            'b: 'a,
-        {
-            let should_construct_face = match half_space {
-                // Don't construct non-boundary faces twice.
-                HalfSpace {
-                    right_idx: Some(right_idx),
-                    shift: None,
-                    plane: Plane { n, .. },
-                    ..
-                } => {
-                    // Only construct face if:
-                    // - normal has right dimensionality
-                    // - other neighbour has not been treated yet or is inactive
-                    dimensionality.vector_is_valid(*n)
-                        && (*right_idx > left_idx || mask.map_or(false, |mask| !mask[*right_idx]))
-                }
-                _ => true,
-            };
+        let maybe_init_face = |maybe_face: &mut Option<VoronoiFaceBuilder<'a>>,
+                               half_space: &'a HalfSpace| {
+            let should_construct_face = build_all_faces
+                || match half_space {
+                    // Don't construct non-boundary faces twice.
+                    HalfSpace {
+                        right_idx: Some(right_idx),
+                        shift: None,
+                        plane: Plane { n, .. },
+                        ..
+                    } => {
+                        // Only construct face if:
+                        // - normal has right dimensionality
+                        // - other neighbour has not been treated yet or is inactive
+                        dimensionality.vector_is_valid(*n)
+                            && (*right_idx > idx || mask.map_or(false, |mask| !mask[*right_idx]))
+                    }
+                    _ => true,
+                };
             if should_construct_face {
-                maybe_face.get_or_insert(VoronoiFaceBuilder::new(left_idx, left_loc, half_space));
+                maybe_face.get_or_insert(VoronoiFaceBuilder::new(idx, loc, half_space));
             }
-        }
+        };
 
         // Loop over the decomposition of this convex cell into tetrahedra to compute the necessary integrals/barycenter calculations
         for tet in convex_cell.decompose() {
@@ -97,14 +91,7 @@ impl VoronoiCell {
 
             // Initialize a new face if necessary
             let maybe_face = &mut maybe_faces[tet.plane_idx];
-            maybe_init_face(
-                maybe_face,
-                idx,
-                loc,
-                &convex_cell.clipping_planes[tet.plane_idx],
-                mask,
-                dimensionality,
-            );
+            maybe_init_face(maybe_face, &convex_cell.clipping_planes[tet.plane_idx]);
             // Update this face's area and centroid if necessary
             if let Some(face) = maybe_face {
                 face.extend(tet.vertices[0], tet.vertices[1], tet.vertices[2])

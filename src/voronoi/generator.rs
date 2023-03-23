@@ -1,4 +1,4 @@
-use glam::{DVec3};
+use glam::DVec3;
 
 use super::Dimensionality;
 

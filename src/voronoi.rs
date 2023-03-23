@@ -224,12 +224,16 @@ impl Voronoi {
 
     /// Link the Voronoi faces to their respective cells.
     fn finalize(mut self) -> Self {
+        let built_all_faces = self.convex_cells.is_some();
+
         let mut cell_face_connections: Vec<Vec<usize>> =
             (0..self.voronoi_cells.len()).map(|_| vec![]).collect();
 
         for (i, face) in self.faces.iter().enumerate() {
             cell_face_connections[face.left()].push(i);
-            if let (Some(right_idx), None) = (face.right(), face.shift()) {
+            // If we built all faces for every Voronoi cell, we do not want to link the 
+            // faces that have this generator as their right generator. 
+            if let (false, Some(right_idx), None) = (built_all_faces, face.right(), face.shift()) {
                 cell_face_connections[right_idx].push(i);
             }
         }
@@ -283,7 +287,7 @@ impl Voronoi {
                     nearest_neighbours,
                     &simulation_volume,
                 );
-                VoronoiCell::from_convex_cell(&convex_cell, faces, mask, dimensionality)
+                VoronoiCell::from_convex_cell(&convex_cell, faces, mask, false, dimensionality)
             } else {
                 VoronoiCell::default()
             }
@@ -364,7 +368,7 @@ impl Voronoi {
     ) -> Vec<VoronoiCell> {
         let build = |(convex_cell, faces): (&Option<ConvexCell>, _)| {
             if let Some(convex_cell) = convex_cell {
-                VoronoiCell::from_convex_cell(convex_cell, faces, mask, dimensionality)
+                VoronoiCell::from_convex_cell(convex_cell, faces, mask, true, dimensionality)
             } else {
                 VoronoiCell::default()
             }

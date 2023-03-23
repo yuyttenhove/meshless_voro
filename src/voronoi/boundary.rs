@@ -51,8 +51,12 @@ impl SimulationBoundary {
     pub fn iloc(&self, loc: DVec3) -> [i64; 3] {
         // Rescale the coordinates to fall within [1, 2):
         let loc = DVec3::splat(1.) + (loc - self.anchor) * self.inverse_width;
-        // convert to bits, only mantissa should have nonzero bits at this point, 
+        // convert to bits, only mantissa should have nonzero bits at this point,
         // so these numbers can be interpreted as rescaled u64 integer coordinates
-        [loc.x.to_bits() as i64, loc.y.to_bits() as i64, loc.z.to_bits() as i64]
+        [
+            loc.x.to_bits() as i64,
+            loc.y.to_bits() as i64,
+            loc.z.to_bits() as i64,
+        ]
     }
 }
