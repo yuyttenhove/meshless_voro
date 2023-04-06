@@ -21,16 +21,18 @@ pub struct VoronoiCell {
     loc: DVec3,
     centroid: DVec3,
     volume: f64,
+    safety_radius: f64,
     face_connections_offset: usize,
     face_count: usize,
 }
 
 impl VoronoiCell {
-    fn init(loc: DVec3, centroid: DVec3, volume: f64) -> Self {
+    fn init(loc: DVec3, centroid: DVec3, volume: f64, safety_radius: f64) -> Self {
         Self {
             loc,
             centroid,
             volume,
+            safety_radius,
             face_connections_offset: 0,
             face_count: 0,
         }
@@ -106,7 +108,7 @@ impl VoronoiCell {
 
         let (volume, centroid) = volume_centroid_integral.finalize();
 
-        VoronoiCell::init(loc, centroid, volume)
+        VoronoiCell::init(loc, centroid, volume, convex_cell.safety_radius)
     }
 
     pub(super) fn finalize(&mut self, face_connections_offset: usize, face_count: usize) {
@@ -127,6 +129,11 @@ impl VoronoiCell {
     /// Get the volume of this cell
     pub fn volume(&self) -> f64 {
         self.volume
+    }
+
+    /// Get the safety radius of this cell
+    pub fn safety_radius(&self) -> f64 {
+        self.safety_radius
     }
 
     /// Get the indices of the faces that have this cell as its left or right neighbour.

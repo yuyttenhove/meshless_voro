@@ -128,7 +128,7 @@ pub(super) struct ConvexCell {
     pub clipping_planes: Vec<HalfSpace>,
     pub vertices: Vec<Vertex>,
     boundary: SimpleCycle,
-    safety_radius: f64,
+    pub safety_radius: f64,
     pub idx: usize,
 }
 
