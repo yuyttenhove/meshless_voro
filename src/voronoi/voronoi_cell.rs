@@ -57,10 +57,10 @@ impl VoronoiCell {
         let maybe_init_face = |maybe_face: &mut Option<VoronoiFaceBuilder<'a>>,
                                half_space: &'a HalfSpace| {
             // Only construct faces that have the right dimensionality.
-            let should_construct_face = build_all_faces
-                || (dimensionality.vector_is_valid(half_space.normal())
-                    && match half_space {
-                        // Don't construct non-boundary faces twice.
+            let should_construct_face = dimensionality.vector_is_valid(half_space.normal())
+                && (build_all_faces
+                    || match half_space {
+                        // Don't construct internal (non-boundary) faces twice.
                         HalfSpace {
                             right_idx: Some(right_idx),
                             shift: None,
