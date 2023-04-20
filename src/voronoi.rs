@@ -231,8 +231,8 @@ impl Voronoi {
 
         for (i, face) in self.faces.iter().enumerate() {
             cell_face_connections[face.left()].push(i);
-            // If we built all faces for every Voronoi cell, we do not want to link the 
-            // faces that have this generator as their right generator. 
+            // If we built all faces for every Voronoi cell, we do not want to link the
+            // faces that have this generator as their right generator.
             if let (false, Some(right_idx), None) = (built_all_faces, face.right(), face.shift()) {
                 cell_face_connections[right_idx].push(i);
             }

@@ -1,12 +1,9 @@
 use glam::DVec3;
 
-use crate::{
-    geometry::Plane,
-    voronoi::{
-        half_space::HalfSpace,
-        voronoi_face::{VoronoiFace, VoronoiFaceBuilder},
-        Voronoi,
-    },
+use crate::voronoi::{
+    half_space::HalfSpace,
+    voronoi_face::{VoronoiFace, VoronoiFaceBuilder},
+    Voronoi,
 };
 
 use super::{
@@ -59,23 +56,21 @@ impl VoronoiCell {
 
         let maybe_init_face = |maybe_face: &mut Option<VoronoiFaceBuilder<'a>>,
                                half_space: &'a HalfSpace| {
+            // Only construct faces that have the right dimensionality.
             let should_construct_face = build_all_faces
-                || match half_space {
-                    // Don't construct non-boundary faces twice.
-                    HalfSpace {
-                        right_idx: Some(right_idx),
-                        shift: None,
-                        plane: Plane { n, .. },
-                        ..
-                    } => {
-                        // Only construct face if:
-                        // - normal has right dimensionality
-                        // - other neighbour has not been treated yet or is inactive
-                        dimensionality.vector_is_valid(*n)
-                            && (*right_idx > idx || mask.map_or(false, |mask| !mask[*right_idx]))
-                    }
-                    _ => true,
-                };
+                || (dimensionality.vector_is_valid(half_space.normal())
+                    && match half_space {
+                        // Don't construct non-boundary faces twice.
+                        HalfSpace {
+                            right_idx: Some(right_idx),
+                            shift: None,
+                            ..
+                        } => {
+                            // Only construct face if: neighbour has not been treated yet or is inactive
+                            *right_idx > idx || mask.map_or(false, |mask| !mask[*right_idx])
+                        }
+                        _ => true,
+                    });
             if should_construct_face {
                 maybe_face.get_or_insert(VoronoiFaceBuilder::new(idx, loc, half_space));
             }
