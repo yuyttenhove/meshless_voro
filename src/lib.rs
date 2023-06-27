@@ -2,17 +2,24 @@
 //!
 //! The algorithm is primarily aimed at generating 3D Voronoi diagrams, but can also be used to compute 1D and 2D Voronoi diagrams.
 //! Like Voro++, this algorithm is _meshless_ implying that no global geometry is constructed. Instead a cell based approach is used and we only compute integrals (cell/face volumes and centroids) and connectivity information (it is possible to determine a cell's neighbours).
+//!
 //! The algorithm can generate Voronoi tesselations with a rectangular boundary or periodic boundary conditions and also supports computing a subset of the Voronoi tesselation.
+//!
+//! If necessary, arbitrary precision arithmetic is used to treat degeneracies and to ensure globaly consistent local geometry, see the appendix of [this reference](https://hal.inria.fr/hal-01927559/file/voroGPU.pdf) for more info:
+//! > <cite>Nicolas Ray, Dmitry Sokolov, Sylvain Lefebvre, Bruno Lévy. Meshless Voronoi on the GPU. ACM
+//! > Transactions on Graphics, 2018, 37 (6), pp.1-12.  10.1145/3272127.3275092 .  hal-01927559<cite>
 
 mod bounding_sphere;
 mod geometry;
 mod part;
 mod rtree_nn;
 mod simple_cycle;
-#[allow(dead_code)]
 // Space is no longer used, I left it in as a reference for the gpu implementation
+#[allow(dead_code)]
 mod space;
 mod util;
 mod voronoi;
 
-pub use voronoi::{Voronoi, VoronoiCell, VoronoiFace};
+pub use voronoi::{
+    CellIntegral, ConvexCell, FaceIntegral, Voronoi, VoronoiCell, VoronoiFace, VoronoiIntegrator,
+};

@@ -9,12 +9,12 @@ use std::path::Path;
 use crate::rtree_nn::{build_rtree, nn_iter, wrapping_nn_iter};
 
 use boundary::SimulationBoundary;
-use convex_cell::ConvexCell;
+pub use convex_cell::ConvexCell;
 pub use generator::Generator;
 pub use voronoi_cell::VoronoiCell;
 pub use voronoi_face::VoronoiFace;
 
-use self::integrators::VoronoiIntegrator;
+pub use self::integrators::{CellIntegral, FaceIntegral};
 
 mod boundary;
 mod convex_cell;
@@ -80,12 +80,13 @@ macro_rules! flatten {
     };
 }
 
-/// The main Voronoi struct
+/// The main Voronoi struct.
+///
+/// This representation has precalculated faces (area, normal, centroid) and cells (volume, centroid).
 pub struct Voronoi {
     anchor: DVec3,
     width: DVec3,
     voronoi_cells: Vec<VoronoiCell>,
-    convex_cells: Option<Vec<Option<ConvexCell>>>,
     faces: Vec<VoronoiFace>,
     cell_face_connections: Vec<usize>,
     dimensionality: Dimensionality,
@@ -99,29 +100,18 @@ impl Voronoi {
     /// For non-periodic Voronoi tesselations, all Voronoi cells are clipped by the simulation volume with given `anchor` and `width` if necessary.
     ///
     /// * `generators` - The seed points of the Voronoi cells.
-    /// * `mask` - If `Some`: The mask determining which Voronoi cells have to be fully constructed
     /// * `anchor` - The lower left corner of the simulation volume.
     /// * `width` - The width of the simulation volume. Also determines the period of periodic Voronoi tesselations.
     /// * `dimensionality` - The dimensionality of the Voronoi tesselation. The algorithm is mainly aimed at constructiong 3D Voronoi tesselations, but can be used for 1 or 2D as well.
     /// * `periodic` - Whether to apply periodic boundary conditions to the Voronoi tesselation.
-    /// * `save_intermediate` - Whether to save the intermediate `ConvexCell` representation (usefull to compute extra integrals later on).
     pub fn build(
         generators: &[DVec3],
         anchor: DVec3,
         width: DVec3,
         dimensionality: usize,
         periodic: bool,
-        save_intermediate: bool,
     ) -> Self {
-        Self::build_internal(
-            generators,
-            None,
-            anchor,
-            width,
-            dimensionality,
-            periodic,
-            save_intermediate,
-        )
+        Self::build_internal(generators, None, anchor, width, dimensionality, periodic)
     }
 
     /// Same as `build`, but now, only a subset of the voronoi cells is fully constructed.
@@ -129,7 +119,7 @@ impl Voronoi {
     /// (between them and other voronoi cells that _are_ fully constructed).
     ///
     /// * `generators` - The seed points of the Voronoi cells.
-    /// * `mask` - `True` Voronoi cells which have to be fully constructed.
+    /// * `mask` - `True` for Voronoi cells which have to be fully constructed.
     /// * `anchor` - The lower left corner of the simulation volume.
     /// * `width` - The width of the simulation volume. Also determines the period of periodic Voronoi tesselations.
     /// * `dimensionality` - The dimensionality of the Voronoi tesselation. The algorithm is mainly aimed at constructiong 3D Voronoi tesselations, but can be used for 1 or 2D as well.
@@ -141,7 +131,6 @@ impl Voronoi {
         width: DVec3,
         dimensionality: usize,
         periodic: bool,
-        save_intermediate: bool,
     ) -> Self {
         Self::build_internal(
             generators,
@@ -150,7 +139,6 @@ impl Voronoi {
             width,
             dimensionality,
             periodic,
-            save_intermediate,
         )
     }
 
@@ -161,7 +149,6 @@ impl Voronoi {
         mut width: DVec3,
         dimensionality: usize,
         periodic: bool,
-        save_intermediate: bool,
     ) -> Self {
         let dimensionality = dimensionality.into();
 
@@ -179,32 +166,15 @@ impl Voronoi {
         // build cells
         let n_cells = generators.len();
         let mut faces = vec![vec![]; n_cells];
-        let (convex_cells, voronoi_cells) = if save_intermediate {
-            let convex_cells = Self::build_convex_cells(
-                &generators,
-                mask,
-                anchor,
-                width,
-                dimensionality,
-                periodic,
-            );
-            let voronoi_cells =
-                Self::build_voronoi_cells(&convex_cells, &mut faces, mask, dimensionality);
-            (Some(convex_cells), voronoi_cells)
-        } else {
-            (
-                None,
-                Self::build_voronoi_cells_direct(
-                    &generators,
-                    &mut faces,
-                    mask,
-                    anchor,
-                    width,
-                    dimensionality,
-                    periodic,
-                ),
-            )
-        };
+        let voronoi_cells = Self::build_voronoi_cells(
+            &generators,
+            &mut faces,
+            mask,
+            anchor,
+            width,
+            dimensionality,
+            periodic,
+        );
 
         // flatten faces
         let faces = flatten!(faces);
@@ -213,7 +183,6 @@ impl Voronoi {
             anchor,
             width,
             voronoi_cells,
-            convex_cells,
             faces,
             cell_face_connections: vec![],
             dimensionality,
@@ -224,16 +193,13 @@ impl Voronoi {
 
     /// Link the Voronoi faces to their respective cells.
     fn finalize(mut self) -> Self {
-        let built_all_faces = self.convex_cells.is_some();
-
         let mut cell_face_connections: Vec<Vec<usize>> =
             (0..self.voronoi_cells.len()).map(|_| vec![]).collect();
 
         for (i, face) in self.faces.iter().enumerate() {
             cell_face_connections[face.left()].push(i);
-            // If we built all faces for every Voronoi cell, we do not want to link the
-            // faces that have this generator as their right generator.
-            if let (false, Some(right_idx), None) = (built_all_faces, face.right(), face.shift()) {
+            // link faces to their right generator if necessary (no boundary faces).
+            if let (Some(right_idx), None) = (face.right(), face.shift()) {
                 cell_face_connections[right_idx].push(i);
             }
         }
@@ -245,12 +211,12 @@ impl Voronoi {
             face_connections_offset += face_count;
         }
 
-        self.cell_face_connections = cell_face_connections.into_iter().flatten().collect();
+        self.cell_face_connections = flatten!(cell_face_connections);
 
         self
     }
 
-    fn build_voronoi_cells_direct(
+    fn build_voronoi_cells(
         generators: &[DVec3],
         faces: &mut [Vec<VoronoiFace>],
         mask: Option<&[bool]>,
@@ -287,7 +253,7 @@ impl Voronoi {
                     nearest_neighbours,
                     &simulation_volume,
                 );
-                VoronoiCell::from_convex_cell(&convex_cell, faces, mask, false, dimensionality)
+                VoronoiCell::from_convex_cell(&convex_cell, faces, mask, dimensionality)
             } else {
                 VoronoiCell::default()
             }
@@ -302,89 +268,6 @@ impl Voronoi {
 
         #[cfg(not(feature = "rayon"))]
         let voronoi_cells = faces.iter_mut().enumerate().map(build).collect::<Vec<_>>();
-
-        voronoi_cells
-    }
-
-    fn build_convex_cells(
-        generators: &[DVec3],
-        mask: Option<&[bool]>,
-        anchor: DVec3,
-        width: DVec3,
-        dimensionality: Dimensionality,
-        periodic: bool,
-    ) -> Vec<Option<ConvexCell>> {
-        // Some general properties
-        let generators: Vec<Generator> = generators
-            .iter()
-            .enumerate()
-            .map(|(id, &loc)| Generator::new(id, loc, dimensionality))
-            .collect();
-
-        let rtree = build_rtree(&generators);
-        let simulation_volume = SimulationBoundary::cuboid(anchor, width, periodic, dimensionality);
-
-        // Helper function
-        let build = |(idx, generator): (usize, &Generator)| {
-            if mask.map_or(true, |mask| mask[idx]) {
-                let loc = generator.loc();
-                debug_assert_eq!(generator.id(), idx);
-                let nearest_neighbours = if periodic {
-                    wrapping_nn_iter(&rtree, loc, width, dimensionality)
-                } else {
-                    nn_iter(&rtree, loc)
-                };
-                let convex_cell = ConvexCell::build(
-                    loc,
-                    idx,
-                    &generators,
-                    nearest_neighbours,
-                    &simulation_volume,
-                );
-                Some(convex_cell)
-            } else {
-                None
-            }
-        };
-
-        #[cfg(feature = "rayon")]
-        let convex_cells = generators
-            .par_iter()
-            .enumerate()
-            .map(build)
-            .collect::<Vec<_>>();
-
-        #[cfg(not(feature = "rayon"))]
-        let convex_cells = generators.iter().enumerate().map(build).collect::<Vec<_>>();
-
-        convex_cells
-    }
-
-    fn build_voronoi_cells(
-        convex_cells: &[Option<ConvexCell>],
-        faces: &mut [Vec<VoronoiFace>],
-        mask: Option<&[bool]>,
-        dimensionality: Dimensionality,
-    ) -> Vec<VoronoiCell> {
-        let build = |(convex_cell, faces): (&Option<ConvexCell>, _)| {
-            if let Some(convex_cell) = convex_cell {
-                VoronoiCell::from_convex_cell(convex_cell, faces, mask, true, dimensionality)
-            } else {
-                VoronoiCell::default()
-            }
-        };
-        #[cfg(feature = "rayon")]
-        let voronoi_cells = convex_cells
-            .par_iter()
-            .zip(faces.par_iter_mut())
-            .map(build)
-            .collect();
-        #[cfg(not(feature = "rayon"))]
-        let voronoi_cells = convex_cells
-            .iter()
-            .zip(faces.iter_mut())
-            .map(build)
-            .collect();
 
         voronoi_cells
     }
@@ -427,38 +310,6 @@ impl Voronoi {
     /// Whether this voronoi tesselation is periodic or not.
     pub fn periodic(&self) -> bool {
         self.periodic
-    }
-
-    /// Compute an extra integral over the faces of a certain VoronoiCell.
-    pub fn compute_face_integrals<T: VoronoiIntegrator + Clone>(
-        &self,
-        integrator: T,
-        id: usize,
-    ) -> Vec<T::Output> {
-        // Reconstruct convex cell from neighbours
-        let convex_cells = self.convex_cells.as_ref().expect(
-            "Cannot compute integrals if the intermediate representation has not been saved!",
-        );
-        let convex_cell = convex_cells[id]
-            .as_ref()
-            .expect("Cannot compute integrals for uninitialized face!");
-        convex_cell.compute_face_integrals(integrator)
-    }
-
-    /// Compute an extra integral over a certain `VoronoiCell`.
-    pub fn compute_cell_integral<T: VoronoiIntegrator>(
-        &self,
-        integrator: T,
-        id: usize,
-    ) -> T::Output {
-        // Reconstruct convex cell from neighbours
-        let convex_cells = self.convex_cells.as_ref().expect(
-            "Cannot compute integrals if the intermediate representation has not been saved!",
-        );
-        let convex_cell = convex_cells[id]
-            .as_ref()
-            .expect("Cannot compute integrals for uninitialized face!");
-        convex_cell.compute_cell_integral(integrator)
     }
 
     /// For all cells, check that the area of the faces is larger than the area of a sphere with the same volume
@@ -609,9 +460,180 @@ impl Voronoi {
     }
 }
 
+impl From<VoronoiIntegrator> for Voronoi {
+    fn from(voronoi_integrator: VoronoiIntegrator) -> Self {
+        let mut faces = vec![vec![]; voronoi_integrator.cells.len()];
+        let voronoi_cells = voronoi_integrator.build_voronoi_cells(&mut faces);
+
+        // flatten faces
+        let faces = flatten!(faces);
+
+        Voronoi {
+            anchor: voronoi_integrator.anchor,
+            width: voronoi_integrator.width,
+            voronoi_cells,
+            faces,
+            cell_face_connections: vec![],
+            dimensionality: voronoi_integrator.dimensionality,
+            periodic: voronoi_integrator.periodic,
+        }
+        .finalize()
+    }
+}
+
+/// An intermediate (meshless) representation of the Voronoi mesh.
+///
+/// Can be used to compute integrals over the faces (e.g. area, solid angle, ...) or cells ((weighted) centroid, ...).
+/// Can also be converted to a Voronoi struct, which implements the `From<VoronoiIntegrator>` trait.
+pub struct VoronoiIntegrator {
+    cells: Vec<Option<ConvexCell>>,
+    anchor: DVec3,
+    width: DVec3,
+    dimensionality: Dimensionality,
+    periodic: bool,
+}
+
+impl VoronoiIntegrator {
+    /// Build the `ConvexCell`s for the given generators.
+    ///
+    /// * `generators` - The seed points of the Voronoi cells.
+    /// * `mask` - (Optional) `True` for Voronoi cells which have to be fully constructed.
+    /// * `anchor` - The lower left corner of the simulation volume.
+    /// * `width` - The width of the simulation volume. Also determines the period of periodic Voronoi tesselations.
+    /// * `dimensionality` - The dimensionality of the Voronoi tesselation. The algorithm is mainly aimed at constructiong 3D Voronoi tesselations, but can be used for 1 or 2D as well.
+    /// * `periodic` - Whether to apply periodic boundary conditions.
+    pub fn build(
+        generators: &[DVec3],
+        mask: Option<&[bool]>,
+        anchor: DVec3,
+        width: DVec3,
+        dimensionality: usize,
+        periodic: bool,
+    ) -> Self {
+        // Some general properties
+        let dimensionality = dimensionality.into();
+        let generators: Vec<Generator> = generators
+            .iter()
+            .enumerate()
+            .map(|(id, &loc)| Generator::new(id, loc, dimensionality))
+            .collect();
+
+        let rtree = build_rtree(&generators);
+        let simulation_volume = SimulationBoundary::cuboid(anchor, width, periodic, dimensionality);
+
+        // Helper function
+        let build = |(idx, generator): (usize, &Generator)| {
+            if mask.map_or(true, |mask| mask[idx]) {
+                let loc = generator.loc();
+                debug_assert_eq!(generator.id(), idx);
+                let nearest_neighbours = if periodic {
+                    wrapping_nn_iter(&rtree, loc, width, dimensionality)
+                } else {
+                    nn_iter(&rtree, loc)
+                };
+                let convex_cell = ConvexCell::build(
+                    loc,
+                    idx,
+                    &generators,
+                    nearest_neighbours,
+                    &simulation_volume,
+                );
+                Some(convex_cell)
+            } else {
+                None
+            }
+        };
+
+        #[cfg(feature = "rayon")]
+        let cells = generators
+            .par_iter()
+            .enumerate()
+            .map(build)
+            .collect::<Vec<_>>();
+
+        #[cfg(not(feature = "rayon"))]
+        let cells = generators.iter().enumerate().map(build).collect::<Vec<_>>();
+
+        Self {
+            cells,
+            anchor,
+            width,
+            dimensionality,
+            periodic,
+        }
+    }
+
+    /// Compute a custom cell integral for the active cells in this representation.
+    pub fn compute_cell_integrals<T: CellIntegral>(&self) -> Vec<T> {
+        self.cells
+            .iter()
+            .filter_map(|maybe_cell| maybe_cell.as_ref().map(|cell| cell.compute_cell_integral()))
+            .collect()
+    }
+
+    /// Compute a custom face integral for all the faces of each active cell in this representation.
+    ///
+    /// Assumes non-symmetric integral (i.e. The integral of a face evaluated from the left cell might
+    /// be different that the integral evaluated from the right cell). Therefore all faces are treated twice.
+    /// For symmetric integrals, `compute_face_integrals_sym` will be more efficient.
+    ///
+    /// Returns a vector with for each active cell a vector of face integrals.
+    pub fn compute_face_integrals<T: FaceIntegral>(&self) -> Vec<Vec<T>> {
+        self.cells
+            .iter()
+            .filter_map(|maybe_cell| {
+                maybe_cell
+                    .as_ref()
+                    .map(|cell| cell.compute_face_integrals())
+            })
+            .collect()
+    }
+
+    pub fn compute_face_integrals_sym<T: FaceIntegral>(&self) -> Vec<Vec<T>> {
+        self.cells
+            .iter()
+            .filter_map(|maybe_cell| {
+                maybe_cell
+                    .as_ref()
+                    .map(|cell| cell.compute_face_integrals_sym(&self.active_cells_mask()))
+            })
+            .collect()
+    }
+
+    fn build_voronoi_cells(&self, faces: &mut [Vec<VoronoiFace>]) -> Vec<VoronoiCell> {
+        let build = |(convex_cell, faces): (&Option<ConvexCell>, _)| match convex_cell {
+            Some(convex_cell) => VoronoiCell::from_convex_cell(
+                convex_cell,
+                faces,
+                Some(&self.active_cells_mask()),
+                self.dimensionality,
+            ),
+            None => VoronoiCell::default(),
+        };
+        #[cfg(feature = "rayon")]
+        let voronoi_cells = self
+            .cells
+            .par_iter()
+            .zip(faces.par_iter_mut())
+            .map(build)
+            .collect();
+        #[cfg(not(feature = "rayon"))]
+        let voronoi_cells = self.cells.iter().zip(faces.iter_mut()).map(build).collect();
+
+        voronoi_cells
+    }
+
+    fn active_cells_mask(&self) -> Vec<bool> {
+        self.cells.iter().map(|cell| cell.is_some()).collect()
+    }
+}
+
 #[cfg(test)]
 mod test {
-    use super::*;
+    use super::{
+        integrators::{AreaCentroidIntegrator, VolumeCentroidIntegrator},
+        *,
+    };
     use float_cmp::assert_approx_eq;
     use rand::{distributions::Uniform, prelude::*};
 
@@ -664,7 +686,7 @@ mod test {
         let generators = vec![DVec3::splat(0.5)];
         let anchor = DVec3::ZERO;
         let width = DVec3::splat(1.);
-        let voronoi = Voronoi::build(&generators, anchor, width, DIM3D, false, false);
+        let voronoi = Voronoi::build(&generators, anchor, width, DIM3D, false);
         assert_approx_eq!(f64, voronoi.voronoi_cells[0].volume(), 1.);
     }
 
@@ -684,7 +706,7 @@ mod test {
         ];
         let anchor = DVec3::ZERO;
         let width = DVec3::splat(1.);
-        let voronoi = Voronoi::build(&generators, anchor, width, DIM3D, false, false);
+        let voronoi = Voronoi::build(&generators, anchor, width, DIM3D, false);
         assert_approx_eq!(f64, voronoi.voronoi_cells[0].volume(), 0.5);
         assert_approx_eq!(f64, voronoi.voronoi_cells[1].volume(), 0.5);
     }
@@ -719,7 +741,7 @@ mod test {
             y: 1.,
             z: 1.,
         };
-        let voronoi = Voronoi::build(&generators, anchor, width, DIM2D, true, false);
+        let voronoi = Voronoi::build(&generators, anchor, width, DIM2D, true);
         #[cfg(feature = "hdf5")]
         voronoi.save("test_4_cells.hdf5").unwrap();
         voronoi.consistency_check();
@@ -757,7 +779,7 @@ mod test {
         ];
         let anchor = DVec3::ZERO;
         let width = DVec3::splat(1.);
-        let voronoi = Voronoi::build(&generators, anchor, width, DIM2D, false, false);
+        let voronoi = Voronoi::build(&generators, anchor, width, DIM2D, false);
         assert_approx_eq!(f64, voronoi.voronoi_cells[0].volume(), 0.2);
         assert_approx_eq!(f64, voronoi.voronoi_cells[1].volume(), 0.2);
         assert_approx_eq!(f64, voronoi.voronoi_cells[2].volume(), 0.2);
@@ -770,7 +792,7 @@ mod test {
         let anchor = DVec3::ZERO;
         let width = DVec3::splat(1.);
         let generators = perturbed_grid(anchor, width, 2, 0.);
-        let voronoi = Voronoi::build(&generators, anchor, width, DIM3D, false, false);
+        let voronoi = Voronoi::build(&generators, anchor, width, DIM3D, false);
         for cell in &voronoi.voronoi_cells {
             assert_approx_eq!(f64, cell.volume(), 0.125);
         }
@@ -781,7 +803,7 @@ mod test {
         let anchor = DVec3::ZERO;
         let width = DVec3::splat(1.);
         let generators = perturbed_grid(anchor, width, 3, 0.);
-        let voronoi = Voronoi::build(&generators, anchor, width, DIM3D, false, false);
+        let voronoi = Voronoi::build(&generators, anchor, width, DIM3D, false);
         for cell in &voronoi.voronoi_cells {
             assert_approx_eq!(f64, cell.volume(), 1. / 27.);
         }
@@ -792,7 +814,7 @@ mod test {
         let anchor = DVec3::ZERO;
         let width = DVec3::splat(1.);
         let generators = perturbed_grid(anchor, width, 4, 0.);
-        let voronoi = Voronoi::build(&generators, anchor, width, DIM3D, false, false);
+        let voronoi = Voronoi::build(&generators, anchor, width, DIM3D, false);
         for cell in &voronoi.voronoi_cells {
             assert_approx_eq!(f64, cell.volume(), 1. / 64.);
         }
@@ -804,7 +826,7 @@ mod test {
         let anchor = DVec3::ZERO;
         let width = DVec3::splat(1.);
         let generators = perturbed_grid(anchor, width, 5, pert);
-        let voronoi = Voronoi::build(&generators, anchor, width, DIM3D, false, false);
+        let voronoi = Voronoi::build(&generators, anchor, width, DIM3D, false);
         voronoi.consistency_check();
     }
 
@@ -814,12 +836,12 @@ mod test {
         let anchor = DVec3::ZERO;
         let width = DVec3::splat(1.);
         let generators = perturbed_grid(anchor, width, 3, pert);
-        let voronoi_all = Voronoi::build(&generators, anchor, width, DIM3D, false, false);
+        let voronoi_all = Voronoi::build(&generators, anchor, width, DIM3D, false);
         for i in 0..27 {
             let mut mask = vec![false; 27];
             mask[i] = true;
             let voronoi_partial =
-                Voronoi::build_partial(&generators, &mask, anchor, width, DIM3D, false, false);
+                Voronoi::build_partial(&generators, &mask, anchor, width, DIM3D, false);
             for j in 0..27 {
                 if j == i {
                     assert_approx_eq!(
@@ -849,7 +871,7 @@ mod test {
             z: 1.,
         };
         let generators = perturbed_plane(anchor, width, count, pert);
-        let voronoi = Voronoi::build(&generators, anchor, width, DIM2D, true, false);
+        let voronoi = Voronoi::build(&generators, anchor, width, DIM2D, true);
 
         #[cfg(feature = "hdf5")]
         voronoi.save("test_2_d.hdf5").unwrap();
@@ -870,7 +892,7 @@ mod test {
         let anchor = DVec3::ZERO;
         let width = DVec3::splat(2.);
         let generators = perturbed_grid(anchor, width, count, pert);
-        let voronoi = Voronoi::build(&generators, anchor, width, DIM3D, false, false);
+        let voronoi = Voronoi::build(&generators, anchor, width, DIM3D, false);
         assert_eq!(voronoi.voronoi_cells.len(), generators.len());
         voronoi.consistency_check();
     }
@@ -900,7 +922,7 @@ mod test {
                 pert,
             ));
         }
-        let voronoi = Voronoi::build(&plane, anchor, width, DIM2D, true, false);
+        let voronoi = Voronoi::build(&plane, anchor, width, DIM2D, true);
         #[cfg(feature = "hdf5")]
         voronoi.save("test_density_grad_2_d.hdf5").unwrap();
 
@@ -914,7 +936,7 @@ mod test {
         let width = DVec3::splat(2e15);
         let mut generators = perturbed_grid(anchor, width, 10, 0.);
         generators[42] = 1e14 * DVec3::new(1.00007490802, 9.00019014286, 5.00014639879);
-        let voronoi = Voronoi::build(&generators, anchor, width, 3, false, false);
+        let voronoi = Voronoi::build(&generators, anchor, width, 3, false);
         voronoi.consistency_check();
     }
 
@@ -926,7 +948,59 @@ mod test {
         generators[4] = 1e14 * DVec3::new(1.00007490802, 9.00019014286, 5.00014639879);
         let mut mask = [false; 27];
         mask[3] = true;
-        let voronoi = Voronoi::build_partial(&generators, &mask, anchor, width, 3, false, false);
+        let voronoi = Voronoi::build_partial(&generators, &mask, anchor, width, 3, false);
         voronoi.consistency_check();
+    }
+
+    #[test]
+    fn test_integrator() {
+        let pert = 0.95;
+        let count = 5;
+        let anchor = DVec3::ZERO;
+        let width = DVec3::splat(2.);
+        let generators = perturbed_grid(anchor, width, count, pert);
+
+        let mut mask = vec![false; 125];
+        mask[62] = true;
+        let voronoi = Voronoi::build_partial(&generators, &mask, anchor, width, 3, true);
+        let integrator = VoronoiIntegrator::build(&generators, Some(&mask), anchor, width, 3, true);
+
+        let area_centroids = integrator.compute_face_integrals::<AreaCentroidIntegrator>();
+        let volume_centroids = integrator.compute_cell_integrals::<VolumeCentroidIntegrator>();
+
+        assert_eq!(area_centroids.len(), 1);
+        for (i, AreaCentroidIntegrator { area, centroid }) in area_centroids[0].iter().enumerate() {
+            assert_eq!(*area, voronoi.faces()[i].area());
+            assert_eq!(*centroid, voronoi.faces()[i].centroid());
+        }
+        assert_eq!(volume_centroids.len(), 1);
+        assert_eq!(volume_centroids[0].volume, voronoi.cells()[62].volume());
+        assert_eq!(volume_centroids[0].centroid, voronoi.cells()[62].centroid());
+
+        let voronoi2: Voronoi = integrator.into();
+        assert_eq!(voronoi2.anchor, voronoi.anchor);
+        assert_eq!(voronoi2.width, voronoi.width);
+        assert_eq!(voronoi2.periodic, voronoi.periodic);
+        assert_eq!(voronoi2.cells().len(), voronoi.cells().len());
+        assert_eq!(
+            voronoi2.cells()[62].centroid(),
+            voronoi.cells()[62].centroid()
+        );
+        assert_eq!(voronoi2.cells()[62].volume(), voronoi.cells()[62].volume());
+        assert_eq!(
+            voronoi2.cells()[62].face_connections_offset(),
+            voronoi.cells()[62].face_connections_offset()
+        );
+        assert_eq!(
+            voronoi2.cells()[62].face_count(),
+            voronoi.cells()[62].face_count()
+        );
+        assert_eq!(voronoi2.faces().len(), voronoi.faces().len());
+        for (face0, face1) in voronoi.faces().iter().zip(voronoi2.faces.iter()) {
+            assert_eq!(face0.area(), face1.area());
+            assert_eq!(face0.centroid(), face1.centroid());
+            assert_eq!(face0.right(), face1.right());
+            assert_eq!(face0.normal(), face1.normal());
+        }
     }
 }

@@ -6,8 +6,11 @@ use crate::{
 };
 
 use super::{
-    boundary::SimulationBoundary, convex_cell_alternative::ConvexCell as ConvexCellAlternative,
-    half_space::HalfSpace, integrators::VoronoiIntegrator, Dimensionality, Generator,
+    boundary::SimulationBoundary,
+    convex_cell_alternative::ConvexCell as ConvexCellAlternative,
+    half_space::HalfSpace,
+    integrators::{CellIntegral, FaceIntegral},
+    Dimensionality, Generator,
 };
 
 #[derive(Clone, Debug)]
@@ -122,19 +125,22 @@ impl Iterator for ConvexCellDecomposition<'_> {
     }
 }
 
+/// Meshless representation of a Voronoi cell as an intersection of halfspaces.
+///
+/// Can be used to compute integrated cell and face quantities
 #[derive(Clone, Debug)]
-pub(super) struct ConvexCell {
-    pub loc: DVec3,
-    pub clipping_planes: Vec<HalfSpace>,
-    pub vertices: Vec<Vertex>,
+pub struct ConvexCell {
+    pub(super) loc: DVec3,
+    pub(super) clipping_planes: Vec<HalfSpace>,
+    pub(super) vertices: Vec<Vertex>,
     boundary: SimpleCycle,
-    pub safety_radius: f64,
-    pub idx: usize,
+    pub(super) safety_radius: f64,
+    pub(super) idx: usize,
 }
 
 impl ConvexCell {
     /// Initialize each voronoi cell as the bounding box of the simulation volume.
-    pub fn init(loc: DVec3, idx: usize, simulation_boundary: &SimulationBoundary) -> Self {
+    pub(super) fn init(loc: DVec3, idx: usize, simulation_boundary: &SimulationBoundary) -> Self {
         let clipping_planes = simulation_boundary.clipping_planes.clone();
 
         let dimensionality = simulation_boundary.dimensionality;
@@ -162,7 +168,7 @@ impl ConvexCell {
     }
 
     /// Build the Convex cell by repeatedly intersecting it with the appropriate half spaces
-    pub fn build(
+    pub(super) fn build(
         loc: DVec3,
         idx: usize,
         generators: &[Generator],
@@ -206,11 +212,11 @@ impl ConvexCell {
         cell
     }
 
-    pub fn decompose(&self) -> ConvexCellDecomposition {
+    pub(super) fn decompose(&self) -> ConvexCellDecomposition {
         ConvexCellDecomposition::new(self)
     }
 
-    pub fn clip_by_plane(
+    pub(super) fn clip_by_plane(
         &mut self,
         p: HalfSpace,
         generators: &[Generator],
@@ -315,15 +321,23 @@ impl ConvexCell {
         self.safety_radius = 2. * max_dist_2.sqrt();
     }
 
-    pub fn compute_face_integrals<T: VoronoiIntegrator + Clone>(
-        &self,
-        integrator: T,
-    ) -> Vec<T::Output> {
+    /// Compute a custom integrated quantity for this cell.
+    pub fn compute_cell_integral<T: CellIntegral>(&self) -> T {
+        // Compute integral from decomposition of convex cell
+        let mut integrator = T::init(&self);
+        for tet in self.decompose() {
+            integrator.collect(tet.vertices[0], tet.vertices[1], tet.vertices[2], self.loc);
+        }
+        integrator.finalize()
+    }
+
+    /// Compute a custom integrated quantity for the faces of this cell (non-symmetric version).
+    pub fn compute_face_integrals<T: FaceIntegral>(&self) -> Vec<T> {
         // Compute integrals from decomposition of convex cell
         let mut integrals = vec![None; self.clipping_planes.len()];
         for tet in self.decompose() {
             let integral = &mut integrals[tet.plane_idx];
-            let integral = integral.get_or_insert_with(|| integrator.clone());
+            let integral = integral.get_or_insert_with(|| T::init(self, tet.plane_idx));
             integral.collect(tet.vertices[0], tet.vertices[1], tet.vertices[2], self.loc);
         }
 
@@ -333,12 +347,35 @@ impl ConvexCell {
             .collect()
     }
 
-    pub fn compute_cell_integral<T: VoronoiIntegrator>(&self, mut integrator: T) -> T::Output {
-        // Compute integral from decomposition of convex cell
+    /// Compute a custom integrated quantity for the faces of this cell.
+    ///
+    /// Symmetric version: skips faces that are shared with active cells with a smaller idx.
+    ///
+    /// - `mask`: A mask indicating which for which generators convex_cells are actually constructed.
+    pub fn compute_face_integrals_sym<T: FaceIntegral>(&self, mask: &[bool]) -> Vec<T> {
+        // Compute integrals from decomposition of convex cell
+        let mut integrals = vec![None; self.clipping_planes.len()];
         for tet in self.decompose() {
-            integrator.collect(tet.vertices[0], tet.vertices[1], tet.vertices[2], self.loc);
+            let integral = &mut integrals[tet.plane_idx];
+            if integral.is_none() {
+                match &self.clipping_planes[tet.plane_idx] {
+                    // If the face is no boundary face and right_idx < this cell's idx corresponds to an active cell, we already treated this face.
+                    &HalfSpace {
+                        shift: None,
+                        right_idx: Some(right_idx),
+                        ..
+                    } if right_idx < self.idx && mask[right_idx] => continue,
+                    _ => (),
+                }
+            }
+            let integral = integral.get_or_insert_with(|| T::init(self, tet.plane_idx));
+            integral.collect(tet.vertices[0], tet.vertices[1], tet.vertices[2], self.loc);
         }
-        integrator.finalize()
+
+        integrals
+            .into_iter()
+            .filter_map(|maybe_integral| maybe_integral.map(|integral| integral.finalize()))
+            .collect()
     }
 }
 
