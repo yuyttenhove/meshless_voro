@@ -130,12 +130,12 @@ impl Iterator for ConvexCellDecomposition<'_> {
 /// Can be used to compute integrated cell and face quantities
 #[derive(Clone, Debug)]
 pub struct ConvexCell {
-    pub(super) loc: DVec3,
+    pub loc: DVec3,
     pub(super) clipping_planes: Vec<HalfSpace>,
     pub(super) vertices: Vec<Vertex>,
     boundary: SimpleCycle,
     pub(super) safety_radius: f64,
-    pub(super) idx: usize,
+    pub idx: usize,
 }
 
 impl ConvexCell {
@@ -319,6 +319,11 @@ impl ConvexCell {
 
         // Update safety radius
         self.safety_radius = 2. * max_dist_2.sqrt();
+    }
+
+    /// Get the index of the generator on the opposite side of a clipping plane.
+    pub fn get_neighbour(&self, clipping_plane_idx: usize) -> Option<usize> {
+        self.clipping_planes[clipping_plane_idx].right_idx
     }
 
     /// Compute a custom integrated quantity for this cell.
