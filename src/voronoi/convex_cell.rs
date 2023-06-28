@@ -1,7 +1,7 @@
 use glam::DVec3;
 
 use crate::{
-    geometry::{in_sphere_test_exact, intersect_planes},
+    geometry::{in_sphere_test_exact, intersect_planes, Plane},
     simple_cycle::SimpleCycle,
 };
 
@@ -324,6 +324,15 @@ impl ConvexCell {
     /// Get the index of the generator on the opposite side of a clipping plane.
     pub fn get_neighbour(&self, clipping_plane_idx: usize) -> Option<usize> {
         self.clipping_planes[clipping_plane_idx].right_idx
+    }
+
+    /// Get the shift (if any) associated with a given clipping plane (for applying periodic boundary conditions).
+    pub fn get_shift(&self, clipping_plane_idx: usize) -> Option<DVec3> {
+        self.clipping_planes[clipping_plane_idx].shift
+    }
+
+    pub fn get_plane(&self, clipping_plane_idx: usize) -> Plane {
+        self.clipping_planes[clipping_plane_idx].plane.clone()
     }
 
     /// Compute a custom integrated quantity for this cell.

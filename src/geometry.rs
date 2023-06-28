@@ -1,24 +1,25 @@
 use glam::{DMat3, DMat4, DVec3, DVec4};
 use rug::{Assign, Integer};
 
+/// A simple plane struct.
 #[derive(Clone, Debug)]
-pub(crate) struct Plane {
+pub struct Plane {
     pub n: DVec3,
     pub p: DVec3,
 }
 
 impl Plane {
     /// Create a plane from a normal vector and a point on the plane.
-    pub(crate) fn new(n: DVec3, p: DVec3) -> Self {
+    pub fn new(n: DVec3, p: DVec3) -> Self {
         Self { n, p }
     }
 
-    /// Project point onto plane.
+    /// Project a point onto plane.
     pub fn project_onto(&self, point: DVec3) -> DVec3 {
         point + (self.p - point).project_onto(self.n)
     }
 
-    /// Project the a point on the intersection of two planes.
+    /// Project a point on the intersection of two planes.
     pub fn project_onto_intersection(&self, other: &Self, point: DVec3) -> DVec3 {
         // first create a plane through the point perpendicular to both planes
         let p_perp = Plane::new(self.n.cross(other.n), point);
@@ -28,12 +29,12 @@ impl Plane {
     }
 
     #[allow(dead_code)]
-    pub fn intersects_sphere(&self, sphere: &Sphere) -> bool {
+    pub(crate) fn intersects_sphere(&self, sphere: &Sphere) -> bool {
         sphere.contains(self.project_onto(sphere.center))
     }
 
     #[allow(dead_code)]
-    pub fn intersects_aabb(&self, aabb: &AABB) -> bool {
+    pub(crate) fn intersects_aabb(&self, aabb: &AABB) -> bool {
         // interval radius of projection of AABB on planes normal
         let r = self.n.abs().dot(aabb.extent);
         // distance from box center to plane

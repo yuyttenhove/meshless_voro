@@ -29,3 +29,5 @@ mod voronoi;
 pub use voronoi::{
     CellIntegral, ConvexCell, FaceIntegral, Voronoi, VoronoiCell, VoronoiFace, VoronoiIntegrator,
 };
+
+pub use geometry::Plane;
