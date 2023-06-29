@@ -79,6 +79,7 @@ pub(super) struct ConvexCell {
     pub vertices: Vec<DualVertex>,
     pub safety_radius2: f64,
     pub boundary: SimpleCycle,
+    pub dimensionality: Dimensionality,
 }
 
 impl ConvexCell {
@@ -162,6 +163,7 @@ impl ConvexCell {
             neighbours,
             vertices,
             safety_radius2: 0.,
+            dimensionality,
         };
         cell.update_safety_radius();
         cell

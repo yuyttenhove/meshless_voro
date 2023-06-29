@@ -9,7 +9,6 @@ use crate::voronoi::{
 use super::{
     convex_cell::ConvexCell,
     integrators::{CellIntegral, VolumeCentroidIntegrator},
-    Dimensionality,
 };
 
 /// A Voronoi cell.
@@ -42,7 +41,6 @@ impl VoronoiCell {
         convex_cell: &'a ConvexCell,
         faces: &mut Vec<VoronoiFace>,
         mask: Option<&[bool]>,
-        dimensionality: Dimensionality,
     ) -> Self {
         let idx = convex_cell.idx;
         let loc = convex_cell.loc;
@@ -55,20 +53,18 @@ impl VoronoiCell {
 
         let maybe_init_face = |maybe_face: &mut Option<VoronoiFaceBuilder<'a>>,
                                half_space: &'a HalfSpace| {
-            // Only construct faces that have the right dimensionality.
-            let should_construct_face = dimensionality.vector_is_valid(half_space.normal())
-                && match half_space {
-                    // Don't construct internal (non-boundary) faces twice.
-                    HalfSpace {
-                        right_idx: Some(right_idx),
-                        shift: None,
-                        ..
-                    } => {
-                        // Only construct face if: neighbour has not been treated yet or is inactive
-                        *right_idx > idx || mask.map_or(false, |mask| !mask[*right_idx])
-                    }
-                    _ => true,
-                };
+            let should_construct_face = match half_space {
+                // Don't construct internal (non-boundary) faces twice.
+                HalfSpace {
+                    right_idx: Some(right_idx),
+                    shift: None,
+                    ..
+                } => {
+                    // Only construct face if: neighbour has not been treated yet or is inactive
+                    *right_idx > idx || mask.map_or(false, |mask| !mask[*right_idx])
+                }
+                _ => true,
+            };
             if should_construct_face {
                 maybe_face.get_or_insert(VoronoiFaceBuilder::new(idx, loc, half_space));
             }
@@ -154,6 +150,4 @@ impl VoronoiCell {
 }
 
 #[cfg(test)]
-mod test {
-    
-}
+mod test {}

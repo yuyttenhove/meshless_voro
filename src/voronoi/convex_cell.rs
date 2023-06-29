@@ -92,6 +92,24 @@ impl<'a> ConvexCellDecomposition<'a> {
             self.projections[2 * i + 1] =
                 next_plane.project_onto_intersection(&cur_plane, self.convex_cell.loc);
         }
+        self.cur_tet_idx = self.next_valid_tet_idx();
+        assert!(
+            self.cur_tet_idx < 6,
+            "Encountered vertex only connected to invalid tetrehedra!"
+        );
+    }
+
+    /// Increments the cur_tet_idx until one is found with the correct dimensionality.
+    fn next_valid_tet_idx(&self) -> usize {
+        let mut next_tet_idx = self.cur_tet_idx;
+        while !self
+            .convex_cell
+            .clipping_plane_has_valid_dimensionality(next_tet_idx / 2)
+            && next_tet_idx < 6
+        {
+            next_tet_idx += 1;
+        }
+        next_tet_idx
     }
 }
 
@@ -104,7 +122,7 @@ impl Iterator for ConvexCellDecomposition<'_> {
             return None;
         }
 
-        // Get next tet
+        // Construct next tet
         let next = ConvexCellTet::new(
             self.projections[self.cur_tet_idx],
             self.projections[(self.cur_tet_idx + 5) % 6],
@@ -112,7 +130,9 @@ impl Iterator for ConvexCellDecomposition<'_> {
             self.cur_vertex.dual[self.cur_tet_idx / 2],
         );
 
+        // Update indices for constructiong the next valid tetrahedron
         self.cur_tet_idx += 1;
+        self.cur_tet_idx = self.next_valid_tet_idx();
         if self.cur_tet_idx == 6 {
             self.cur_tet_idx = 0;
             self.cur_vertex_idx += 1;
@@ -136,6 +156,7 @@ pub struct ConvexCell {
     boundary: SimpleCycle,
     pub(super) safety_radius: f64,
     pub idx: usize,
+    dimensionality: Dimensionality,
 }
 
 impl ConvexCell {
@@ -162,6 +183,7 @@ impl ConvexCell {
             clipping_planes,
             vertices,
             safety_radius: 0.,
+            dimensionality,
         };
         cell.update_safety_radius();
         cell
@@ -345,6 +367,11 @@ impl ConvexCell {
         integrator.finalize()
     }
 
+    fn clipping_plane_has_valid_dimensionality(&self, plane_idx: usize) -> bool {
+        self.dimensionality
+            .vector_is_valid(self.clipping_planes[plane_idx].normal())
+    }
+
     /// Compute a custom integrated quantity for the faces of this cell (non-symmetric version).
     pub fn compute_face_integrals<T: FaceIntegral>(&self) -> Vec<T> {
         // Compute integrals from decomposition of convex cell
@@ -422,6 +449,7 @@ impl From<ConvexCellAlternative> for ConvexCell {
             boundary: SimpleCycle::new(0),
             safety_radius: 0.,
             idx: convex_cell_alt.idx,
+            dimensionality: convex_cell_alt.dimensionality,
         }
     }
 }

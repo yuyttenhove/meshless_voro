@@ -26,7 +26,7 @@ mod integrators;
 mod voronoi_cell;
 mod voronoi_face;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub(crate) enum Dimensionality {
     Dimensionality1D,
     Dimensionality2D,
@@ -253,7 +253,7 @@ impl Voronoi {
                     nearest_neighbours,
                     &simulation_volume,
                 );
-                VoronoiCell::from_convex_cell(&convex_cell, faces, mask, dimensionality)
+                VoronoiCell::from_convex_cell(&convex_cell, faces, mask)
             } else {
                 VoronoiCell::default()
             }
@@ -615,12 +615,9 @@ impl VoronoiIntegrator {
 
     fn build_voronoi_cells(&self, faces: &mut [Vec<VoronoiFace>]) -> Vec<VoronoiCell> {
         let build = |(convex_cell, faces): (&Option<ConvexCell>, _)| match convex_cell {
-            Some(convex_cell) => VoronoiCell::from_convex_cell(
-                convex_cell,
-                faces,
-                Some(&self.active_cells_mask()),
-                self.dimensionality,
-            ),
+            Some(convex_cell) => {
+                VoronoiCell::from_convex_cell(convex_cell, faces, Some(&self.active_cells_mask()))
+            }
             None => VoronoiCell::default(),
         };
         #[cfg(feature = "rayon")]
