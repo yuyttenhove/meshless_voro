@@ -26,7 +26,7 @@ mod integrators;
 mod voronoi_cell;
 mod voronoi_face;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum Dimensionality {
     Dimensionality1D,
     Dimensionality2D,
@@ -325,13 +325,21 @@ impl Voronoi {
                 continue;
             }
             let faces = cell.faces(self);
-            let area: f64 = faces.map(|f| f.area()).sum();
-            let radius = (0.25 * 3. * std::f64::consts::FRAC_1_PI * cell.volume()).powf(1. / 3.);
-            let sphere_area = 4. * std::f64::consts::PI * radius * radius;
-            assert!(area > sphere_area);
-            total_volume += cell.volume();
+            if self.dimensionality == Dimensionality::Dimensionality3D {
+                let area: f64 = faces.map(|f| f.area()).sum();
+                let radius = (0.25 * 3. * std::f64::consts::FRAC_1_PI * cell.volume()).powf(1. / 3.);
+                let sphere_area = 4. * std::f64::consts::PI * radius * radius;
+                assert!(area > sphere_area);
+                total_volume += cell.volume();
+            } else {
+                // Just check that we only have faces with correct dimensionality
+                for f in faces {
+                    assert!(self.dimensionality.vector_is_valid(f.normal()))
+                }
+            }
+            
         }
-        if all_active {
+        if all_active && self.dimensionality == Dimensionality::Dimensionality3D {
             let box_volume = self.width.x * self.width.y * self.width.z;
             assert_approx_eq!(
                 f64,

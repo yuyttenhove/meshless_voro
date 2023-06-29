@@ -92,24 +92,6 @@ impl<'a> ConvexCellDecomposition<'a> {
             self.projections[2 * i + 1] =
                 next_plane.project_onto_intersection(&cur_plane, self.convex_cell.loc);
         }
-        self.cur_tet_idx = self.next_valid_tet_idx();
-        assert!(
-            self.cur_tet_idx < 6,
-            "Encountered vertex only connected to invalid tetrehedra!"
-        );
-    }
-
-    /// Increments the cur_tet_idx until one is found with the correct dimensionality.
-    fn next_valid_tet_idx(&self) -> usize {
-        let mut next_tet_idx = self.cur_tet_idx;
-        while !self
-            .convex_cell
-            .clipping_plane_has_valid_dimensionality(next_tet_idx / 2)
-            && next_tet_idx < 6
-        {
-            next_tet_idx += 1;
-        }
-        next_tet_idx
     }
 }
 
@@ -132,7 +114,6 @@ impl Iterator for ConvexCellDecomposition<'_> {
 
         // Update indices for constructiong the next valid tetrahedron
         self.cur_tet_idx += 1;
-        self.cur_tet_idx = self.next_valid_tet_idx();
         if self.cur_tet_idx == 6 {
             self.cur_tet_idx = 0;
             self.cur_vertex_idx += 1;
@@ -156,7 +137,7 @@ pub struct ConvexCell {
     boundary: SimpleCycle,
     pub(super) safety_radius: f64,
     pub idx: usize,
-    dimensionality: Dimensionality,
+    pub(super) dimensionality: Dimensionality,
 }
 
 impl ConvexCell {
@@ -377,6 +358,10 @@ impl ConvexCell {
         // Compute integrals from decomposition of convex cell
         let mut integrals = vec![None; self.clipping_planes.len()];
         for tet in self.decompose() {
+            // Only compute integrals for faces of valid dimensionality
+            if !self.clipping_plane_has_valid_dimensionality(tet.plane_idx) {
+                continue;
+            }
             let integral = &mut integrals[tet.plane_idx];
             let integral = integral.get_or_insert_with(|| T::init(self, tet.plane_idx));
             integral.collect(tet.vertices[0], tet.vertices[1], tet.vertices[2], self.loc);
@@ -397,6 +382,10 @@ impl ConvexCell {
         // Compute integrals from decomposition of convex cell
         let mut integrals = vec![None; self.clipping_planes.len()];
         for tet in self.decompose() {
+            // Only compute integrals for faces of valid dimensionality
+            if !self.clipping_plane_has_valid_dimensionality(tet.plane_idx) {
+                continue;
+            }
             let integral = &mut integrals[tet.plane_idx];
             if integral.is_none() {
                 match &self.clipping_planes[tet.plane_idx] {
