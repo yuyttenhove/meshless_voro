@@ -505,13 +505,26 @@ impl VoronoiIntegrator {
     pub fn build(
         generators: &[DVec3],
         mask: Option<&[bool]>,
-        anchor: DVec3,
-        width: DVec3,
+        mut anchor: DVec3,
+        mut width: DVec3,
         dimensionality: usize,
         periodic: bool,
     ) -> Self {
         // Some general properties
         let dimensionality = dimensionality.into();
+
+        // Normalize the unused components of the simulation volume, so that the lower dimensional volumes will be correct.
+        if let Dimensionality::Dimensionality1D = dimensionality {
+            anchor.y = -0.5;
+            width.y = 1.;
+        };
+        if let Dimensionality::Dimensionality1D | Dimensionality::Dimensionality2D = dimensionality
+        {
+            anchor.z = -0.5;
+            width.z = 1.;
+        }
+
+        // Construct generators
         let generators: Vec<Generator> = generators
             .iter()
             .enumerate()

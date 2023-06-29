@@ -425,3 +425,47 @@ impl From<ConvexCellAlternative> for ConvexCell {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use crate::voronoi::{boundary::SimulationBoundary, half_space::HalfSpace, Generator};
+
+    use super::*;
+
+    const DIM3D: usize = 3;
+
+    #[test]
+    fn test_init_cuboid() {
+        let anchor = DVec3::splat(1.);
+        let width = DVec3::splat(4.);
+        let cell = SimulationBoundary::cuboid(anchor, width, false, DIM3D.into());
+
+        assert_eq!(cell.clipping_planes.len(), 6);
+    }
+
+    #[test]
+    fn test_clipping() {
+        let anchor = DVec3::splat(1.);
+        let width = DVec3::splat(2.);
+        let loc = DVec3::splat(2.);
+        let volume = SimulationBoundary::cuboid(anchor, width, false, DIM3D.into());
+        let mut cell = ConvexCell::init(loc, 0, &volume);
+
+        let ngb = DVec3::splat(2.5);
+        let generators = [
+            Generator::new(0, loc, DIM3D.into()),
+            Generator::new(1, ngb, DIM3D.into()),
+        ];
+        let dx = cell.loc - ngb;
+        let dist = dx.length();
+        let n = dx / dist;
+        let p = 0.5 * (cell.loc + ngb);
+        cell.clip_by_plane(
+            HalfSpace::new(n, p, Some(1), Some(DVec3::ZERO)),
+            &generators,
+            &volume,
+        );
+
+        assert_eq!(cell.clipping_planes.len(), 7)
+    }
+}
