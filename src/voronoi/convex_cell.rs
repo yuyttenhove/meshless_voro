@@ -9,15 +9,15 @@ use super::{
     boundary::SimulationBoundary,
     convex_cell_alternative::ConvexCell as ConvexCellAlternative,
     half_space::HalfSpace,
-    integrators::{CellIntegral, FaceIntegral},
+    integrals::{CellIntegral, FaceIntegral},
     Dimensionality, Generator,
 };
 
 /// A Vertex of a convex cell.
-/// 
+///
 /// Stores:
 /// - the location of the vertex
-/// - its dual representation: the indices of the three half spaces that intersect at the vertex 
+/// - its dual representation: the indices of the three half spaces that intersect at the vertex
 ///   (in counterclockwise order around the vertex).
 /// - the safety radius for this vertex.
 #[derive(Clone, Debug)]
@@ -56,11 +56,11 @@ impl Vertex {
 
 /// An oriented tetrahedron, part of a decomposition of a ConvexCell.
 /// The generator of the corresponding ConvexCell is forms the top of the tetrahedron.
-/// 
+///
 /// We use the following orientation convention:
 /// - If the three vertices are ordered counterclockwise as seen from the top, the tetrahedron is assumed to be part of
 ///   the ConvexCell and should contribute from any integrals that will be computed.
-/// - If the vertices are ordered clockwise, the tetrahedron should substract from the integrals, 
+/// - If the vertices are ordered clockwise, the tetrahedron should substract from the integrals,
 ///   to correct for another tetrahedron that was not fully contained within the ConvexCell.
 pub(super) struct ConvexCellTet {
     pub plane_idx: usize,
@@ -77,7 +77,7 @@ impl ConvexCellTet {
 }
 
 /// Decompose a ConvexCell into an iterator of oriented tetrahedra.
-/// 
+///
 /// Usefull to compute integrals, such as volume, area, centroid... for ConvexCells.
 pub(super) struct ConvexCellDecomposition<'a> {
     convex_cell: &'a ConvexCell,

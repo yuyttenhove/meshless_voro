@@ -8,7 +8,7 @@ use crate::voronoi::{
 
 use super::{
     convex_cell::ConvexCell,
-    integrators::{CellIntegral, VolumeCentroidIntegrator},
+    integrals::{CellIntegral, VolumeCentroidIntegrator},
 };
 
 /// A Voronoi cell.

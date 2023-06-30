@@ -1,5 +1,3 @@
-use glam::{DMat3, DVec3};
-
 pub trait GetMutMultiple {
     type Output;
 
@@ -43,30 +41,8 @@ impl<T> GetMutMultiple for Vec<T> {
     }
 }
 
-/// Compute the signed volume of a oriented tetrahedron.
-/// 
-/// The volume is positive if v0,v1,v2 are ordered counterclockwise as seen from v3.
-pub fn signed_volume_tet(v0: DVec3, v1: DVec3, v2: DVec3, v3: DVec3) -> f64 {
-    let v01 = v1 - v0;
-    let v02 = v2 - v0;
-    let v03 = v3 - v0;
-
-    DMat3::from_cols(v01, v02, v03).determinant() / 6.
-}
-
-/// Calculates the signed area of the ground face `v0`, `v1`, `v2` of the tetrahedron with top `t`.
-/// The area is positive if the the vertices are ordered counterclockwise as seen from t.
-pub fn signed_area_tri(v0: DVec3, v1: DVec3, v2: DVec3, t: DVec3) -> f64 {
-    // Normal vector with the area of the ground face as length
-    let n = 0.5 * (v1 - v0).cross(v2 - v0);
-    let sign = (t - v0).dot(n).signum();
-    n.length() * sign
-}
-
 #[cfg(test)]
 mod test {
-    use glam::DVec3;
-
     use super::*;
 
     #[test]
@@ -86,42 +62,5 @@ mod test {
         assert_eq!(v[0], 4);
         assert_eq!(v[1], 5);
         assert_eq!(v[2], 6);
-    }
-
-    #[test]
-    fn test_signed_volume() {
-        let v0 = DVec3::ZERO;
-        let v1 = DVec3::X;
-        let v2 = DVec3::Y;
-        let v3 = DVec3::Z;
-
-        let volume = signed_volume_tet(v0, v1, v2, v3);
-        assert_eq!(volume, 1. / 6.);
-
-        let volume2 = signed_volume_tet(v0, v2, v1, v3);
-        assert_eq!(volume, -volume2);
-    }
-
-    #[test]
-    fn test_signed_area() {
-        let v0 = DVec3::ZERO;
-        let v1 = DVec3::X;
-        let v2 = DVec3::Y;
-        let t = DVec3::Z;
-
-        let area = signed_area_tri(v0, v1, v2, t);
-        assert_eq!(area, 0.5);
-
-        let area2 = signed_area_tri(v0, v2, v1, t);
-        assert_eq!(area, -area2);
-
-        let t = DVec3::Z
-            + DVec3 {
-                x: 10.,
-                y: 10.,
-                z: 0.,
-            };
-        let area3 = signed_area_tri(v0, v1, v2, t);
-        assert_eq!(area, area3)
     }
 }

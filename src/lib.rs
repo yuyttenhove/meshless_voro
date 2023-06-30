@@ -17,7 +17,7 @@
 //! - Evaluation of custom _integrals_ for cells (e.g. weighted centroid) and faces (e.g. solid angles).
 
 mod bounding_sphere;
-mod geometry;
+pub mod geometry;
 mod part;
 mod rtree_nn;
 mod simple_cycle;
@@ -27,8 +27,7 @@ mod space;
 mod util;
 mod voronoi;
 
-pub use voronoi::{
-    CellIntegral, ConvexCell, FaceIntegral, Voronoi, VoronoiCell, VoronoiFace, VoronoiIntegrator,
-};
+pub use voronoi::{ConvexCell, Voronoi, VoronoiCell, VoronoiFace, VoronoiIntegrator};
+pub use voronoi::integrals;
 
-pub use geometry::Plane;
+// pub use voronoi::integrals::{AreaIntegral, CellIntegral, FaceIntegral, VolumeIntegral};

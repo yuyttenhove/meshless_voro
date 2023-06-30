@@ -2,7 +2,7 @@ use glam::DVec3;
 
 use super::{
     half_space::HalfSpace,
-    integrators::{AreaCentroidIntegrator, FaceIntegral},
+    integrals::{AreaCentroidIntegrator, FaceIntegral},
 };
 
 pub(super) struct VoronoiFaceBuilder<'a> {

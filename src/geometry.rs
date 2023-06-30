@@ -1,3 +1,6 @@
+//! A few general purpose geometry functions and structs,
+//!  which might also be usefull for users of this library.
+
 use glam::{DMat3, DMat4, DVec3, DVec4};
 use rug::{Assign, Integer};
 
@@ -46,7 +49,7 @@ impl Plane {
 
 /// Calculate the intersection of 3 planes.
 /// see: https://mathworld.wolfram.com/Plane-PlaneIntersection.html
-pub(crate) fn intersect_planes(p0: &Plane, p1: &Plane, p2: &Plane) -> DVec3 {
+pub fn intersect_planes(p0: &Plane, p1: &Plane, p2: &Plane) -> DVec3 {
     let det = DMat3::from_cols(p0.n, p1.n, p2.n).determinant();
     assert!(det != 0., "Degenerate 3-plane intersection!");
 
@@ -54,6 +57,26 @@ pub(crate) fn intersect_planes(p0: &Plane, p1: &Plane, p2: &Plane) -> DVec3 {
         + p1.p.dot(p1.n) * p2.n.cross(p0.n)
         + p2.p.dot(p2.n) * p0.n.cross(p1.n))
         / det
+}
+
+/// Compute the signed volume of a oriented tetrahedron.
+///
+/// The volume is positive if v0,v1,v2 are ordered counterclockwise as seen from v3.
+pub fn signed_volume_tet(v0: DVec3, v1: DVec3, v2: DVec3, v3: DVec3) -> f64 {
+    let v01 = v1 - v0;
+    let v02 = v2 - v0;
+    let v03 = v3 - v0;
+
+    DMat3::from_cols(v01, v02, v03).determinant() / 6.
+}
+
+/// Calculates the signed area of the ground face `v0`, `v1`, `v2` of the tetrahedron with top `t`.
+/// The area is positive if the the vertices are ordered counterclockwise as seen from t.
+pub fn signed_area_tri(v0: DVec3, v1: DVec3, v2: DVec3, t: DVec3) -> f64 {
+    // Normal vector with the area of the ground face as length
+    let n = 0.5 * (v1 - v0).cross(v2 - v0);
+    let sign = (t - v0).dot(n).signum();
+    n.length() * sign
 }
 
 #[derive(Clone)]
@@ -166,7 +189,7 @@ impl Sphere {
 /// See springel (2010) eq. (3).
 /// The result is negative when `v` lies inside and positive when `v` lies outside the circumsphere
 /// We work in relative coordinates to simplify the determinant to a 4x4 determinant.
-pub fn in_sphere_test(a: DVec3, b: DVec3, c: DVec3, d: DVec3, v: DVec3) -> f64 {
+pub(crate) fn in_sphere_test(a: DVec3, b: DVec3, c: DVec3, d: DVec3, v: DVec3) -> f64 {
     let b = (b - a).extend((b - a).length_squared());
     let c = (c - a).extend((c - a).length_squared());
     let d = (d - a).extend((d - a).length_squared());
@@ -214,7 +237,7 @@ macro_rules! big_int_det3x3 {
 
 /// Test whether `v` lies inside or outside the circumsphere around `a`, `b`, `c` and `d` using
 /// exact integer arithmatic.
-pub fn in_sphere_test_exact(a: &[i64], b: &[i64], c: &[i64], d: &[i64], v: &[i64]) -> f64 {
+pub(crate) fn in_sphere_test_exact(a: &[i64], b: &[i64], c: &[i64], d: &[i64], v: &[i64]) -> f64 {
     let b = big_int!(b, a);
     let c = big_int!(c, a);
     let d = big_int!(d, a);
@@ -286,7 +309,46 @@ impl AABB {
 mod test {
     use glam::DVec3;
 
+    use crate::geometry::{signed_area_tri, signed_volume_tet};
+
     use super::{Plane, Sphere, AABB};
+
+    #[test]
+    fn test_signed_volume() {
+        let v0 = DVec3::ZERO;
+        let v1 = DVec3::X;
+        let v2 = DVec3::Y;
+        let v3 = DVec3::Z;
+
+        let volume = signed_volume_tet(v0, v1, v2, v3);
+        assert_eq!(volume, 1. / 6.);
+
+        let volume2 = signed_volume_tet(v0, v2, v1, v3);
+        assert_eq!(volume, -volume2);
+    }
+
+    #[test]
+    fn test_signed_area() {
+        let v0 = DVec3::ZERO;
+        let v1 = DVec3::X;
+        let v2 = DVec3::Y;
+        let t = DVec3::Z;
+
+        let area = signed_area_tri(v0, v1, v2, t);
+        assert_eq!(area, 0.5);
+
+        let area2 = signed_area_tri(v0, v2, v1, t);
+        assert_eq!(area, -area2);
+
+        let t = DVec3::Z
+            + DVec3 {
+                x: 10.,
+                y: 10.,
+                z: 0.,
+            };
+        let area3 = signed_area_tri(v0, v1, v2, t);
+        assert_eq!(area, area3)
+    }
 
     #[test]
     fn test_sphere_two_points() {

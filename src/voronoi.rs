@@ -14,7 +14,7 @@ pub use generator::Generator;
 pub use voronoi_cell::VoronoiCell;
 pub use voronoi_face::VoronoiFace;
 
-pub use self::integrators::{CellIntegral, FaceIntegral};
+use self::integrals::{CellIntegral, FaceIntegral};
 
 mod boundary;
 mod convex_cell;
@@ -22,7 +22,7 @@ mod convex_cell;
 mod convex_cell_alternative;
 mod generator;
 mod half_space;
-mod integrators;
+pub mod integrals;
 mod voronoi_cell;
 mod voronoi_face;
 
@@ -327,7 +327,8 @@ impl Voronoi {
             let faces = cell.faces(self);
             if self.dimensionality == Dimensionality::Dimensionality3D {
                 let area: f64 = faces.map(|f| f.area()).sum();
-                let radius = (0.25 * 3. * std::f64::consts::FRAC_1_PI * cell.volume()).powf(1. / 3.);
+                let radius =
+                    (0.25 * 3. * std::f64::consts::FRAC_1_PI * cell.volume()).powf(1. / 3.);
                 let sphere_area = 4. * std::f64::consts::PI * radius * radius;
                 assert!(area > sphere_area);
                 total_volume += cell.volume();
@@ -337,7 +338,6 @@ impl Voronoi {
                     assert!(self.dimensionality.vector_is_valid(f.normal()))
                 }
             }
-            
         }
         if all_active && self.dimensionality == Dimensionality::Dimensionality3D {
             let box_volume = self.width.x * self.width.y * self.width.z;
@@ -649,7 +649,7 @@ impl VoronoiIntegrator {
 #[cfg(test)]
 mod test {
     use super::{
-        integrators::{AreaCentroidIntegrator, VolumeCentroidIntegrator},
+        integrals::{AreaCentroidIntegrator, VolumeCentroidIntegrator},
         *,
     };
     use float_cmp::assert_approx_eq;
