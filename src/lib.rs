@@ -11,8 +11,9 @@
 //!
 //! **Features**:
 //! - Construction of 1D, 2D and 3D Voronoi grids.
-//! - Save Voronoi grid to hdf5 format (requires `hdf5` feature)
+//! - Partial construction of grids.
 //! - Parallel construction of the voronoi grid (requires `rayon` feature)
+//! - Save Voronoi grids to `.hdf5` format (requires `hdf5` feature)
 //! - Evaluation of custom _integrals_ for cells (e.g. weighted centroid) and faces (e.g. solid angles).
 
 mod bounding_sphere;

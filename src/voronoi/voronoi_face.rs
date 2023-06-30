@@ -42,11 +42,15 @@ impl<'a> VoronoiFaceBuilder<'a> {
 /// A Voronoi face between two neighbouring generators.
 #[derive(Debug, Clone)]
 pub struct VoronoiFace {
+    /// Index of generator on the left of this face
     left: usize,
+    /// Index of the generator on the right of this face. May be `None` for boundary faces when reflective boundary conditions are used.
     right: Option<usize>,
     area: f64,
     centroid: DVec3,
+    /// We follow the convention that the normals of faces point from the left generator to the right generator.
     normal: DVec3,
+    /// Shift to apply to the right generator to bring it in the reference frame of the left (if any), when periodic boundary conditions are used.
     shift: Option<DVec3>,
 }
 

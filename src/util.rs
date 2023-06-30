@@ -43,6 +43,9 @@ impl<T> GetMutMultiple for Vec<T> {
     }
 }
 
+/// Compute the signed volume of a oriented tetrahedron.
+/// 
+/// The volume is positive if v0,v1,v2 are ordered counterclockwise as seen from v3.
 pub fn signed_volume_tet(v0: DVec3, v1: DVec3, v2: DVec3, v3: DVec3) -> f64 {
     let v01 = v1 - v0;
     let v02 = v2 - v0;

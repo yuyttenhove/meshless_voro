@@ -4,7 +4,17 @@ use crate::util::{signed_area_tri, signed_volume_tet};
 
 use super::convex_cell::ConvexCell;
 
-/// Trait to implement new integrators for Voronoi cells
+/// Trait to implement new integrators for Voronoi cells.
+/// 
+/// Integrators are expected to compute quanties of interest for Voronoi cells iteratively.
+/// The Voronoi cell is decomposed into a number of oriented tetrahedra, 
+/// which are fed one by one to the cell-integrators.
+/// 
+/// We use the following orientation convention:
+/// - If the three vertices are ordered counterclockwise as seen from the top, the tetrahedron is assumed to be part of
+///   the Voronoi cell and should contribute positively to integrals.
+/// - If the three vertices are ordered clockwise, the tetrahedron should substract from the integrals. 
+///   this is to correct for another tetrahedron that is not fully contained within the Voronoi cell.
 pub trait CellIntegral {
     /// Initialize a CellIntegral for the given ConvexCell.
     fn init(cell: &ConvexCell) -> Self;
@@ -54,7 +64,17 @@ impl CellIntegral for VolumeCentroidIntegrator {
     }
 }
 
-/// Trait to implement new integrators for Voronoi faces
+/// Trait to implement new integrators for Voronoi Faces.
+/// 
+/// Integrators are expected to compute quanties of interest for Voronoi faces iteratively.
+/// The Voronoi cell is decomposed into a number of oriented tetrahedra. 
+/// Tetrahedra contributing to the same face are fed one by one to the face-integrators.
+/// 
+/// We use the following orientation convention:
+/// - If the three vertices are ordered counterclockwise as seen from the top, the tetrahedron is assumed to be part of
+///   the Voronoi cell and should contribute positively to integrals.
+/// - If the three vertices are ordered clockwise, the tetrahedron should substract from the integrals. 
+///   this is to correct for another tetrahedron that is not fully contained within the Voronoi cell.
 pub trait FaceIntegral: Clone {
     /// Initialize a FaceIntegral for the given ConvexCell and clipping_plane_index.
     fn init(cell: &ConvexCell, clipping_plane_idx: usize) -> Self;

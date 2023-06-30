@@ -51,6 +51,7 @@ impl VoronoiCell {
                 .map(|_| None)
                 .collect();
 
+        // Helper function to decide which faces should be constucted.
         let maybe_init_face = |maybe_face: &mut Option<VoronoiFaceBuilder<'a>>,
                                half_space: &'a HalfSpace| {
             // Only construct faces for clipping planes of valid dimensionality.
