@@ -17,9 +17,14 @@ use super::convex_cell::ConvexCell;
 ///   the Voronoi cell and should contribute positively to integrals.
 /// - If the three vertices are ordered clockwise, the tetrahedron should substract from the integrals.
 ///   this is to correct for another tetrahedron that is not fully contained within the Voronoi cell.
-pub trait CellIntegral {
+pub trait CellIntegral: Sized {
     /// Initialize a CellIntegral for the given ConvexCell.
     fn init(cell: &ConvexCell) -> Self;
+
+    /// Initialize a CellIntegral with some extra data.
+    fn init_with_data<T>(cell: &ConvexCell, _data: T) -> Self {
+        Self::init(cell)
+    }
 
     /// Update the state of the integrator using one oriented tetrahedron (with the cell's generator `gen` as top),
     /// which is part of a cell.
@@ -67,15 +72,14 @@ impl CellIntegral for VolumeCentroidIntegrator {
 }
 
 /// Example implementation of a simple cell integrator for computing the volume of a ConvexCell
+#[derive(Default)]
 pub struct VolumeIntegral {
     pub volume: f64,
 }
 
 impl CellIntegral for VolumeIntegral {
     fn init(_cell: &ConvexCell) -> Self {
-        Self {
-            volume: 0.
-        }
+        Self::default()
     }
 
     fn collect(&mut self, v0: DVec3, v1: DVec3, v2: DVec3, gen: DVec3) {
@@ -101,6 +105,11 @@ impl CellIntegral for VolumeIntegral {
 pub trait FaceIntegral: Clone {
     /// Initialize a FaceIntegral for the given ConvexCell and clipping_plane_index.
     fn init(cell: &ConvexCell, clipping_plane_idx: usize) -> Self;
+
+    /// Initialize a CellIntegral with some extra data.
+    fn init_with_data<T>(cell: &ConvexCell, clipping_plane_idx: usize, _data: T) -> Self {
+        Self::init(cell, clipping_plane_idx)
+    }
 
     /// Update the state of the integrator using one oriented tetrahedron (with the cell's generator `gen` as top),
     /// which is part of a cell.
@@ -147,7 +156,6 @@ impl FaceIntegral for AreaCentroidIntegrator {
     }
 }
 
-
 /// Example implementation of a simple face integrator for computing the area of the faces of a ConvexCell
 pub struct AreaIntegral {
     pub area: f64,
@@ -155,9 +163,7 @@ pub struct AreaIntegral {
 
 impl CellIntegral for AreaIntegral {
     fn init(_cell: &ConvexCell) -> Self {
-        Self {
-            area: 0.
-        }
+        Self { area: 0. }
     }
 
     fn collect(&mut self, v0: DVec3, v1: DVec3, v2: DVec3, gen: DVec3) {
