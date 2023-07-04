@@ -14,7 +14,7 @@ pub use generator::Generator;
 pub use voronoi_cell::VoronoiCell;
 pub use voronoi_face::VoronoiFace;
 
-use self::integrals::{CellIntegral, FaceIntegral};
+use self::integrals::{CellIntegral, CellIntegralWithData, FaceIntegral, FaceIntegralWithData};
 
 mod boundary;
 mod convex_cell;
@@ -595,15 +595,14 @@ impl VoronoiIntegrator {
 
     /// Compute a custom cell integral for the active cells in this representation.
     pub fn compute_cell_integrals<T: CellIntegral>(&self) -> Vec<T> {
-        cells_map!(self.cells, |cell| cell.compute_cell_integral::<T, ()>(None))
+        cells_map!(self.cells, |cell| cell.compute_cell_integral(()))
     }
 
-    pub fn compute_cell_integrals_with_data<T: CellIntegral, D: Copy>(
+    pub fn compute_cell_integrals_with_data<D: Copy, T: CellIntegralWithData<D>>(
         &self,
         extra_data: D,
     ) -> Vec<T> {
-        cells_map!(self.cells, |cell| cell
-            .compute_cell_integral(Some(extra_data)))
+        cells_map!(self.cells, |cell| cell.compute_cell_integral(extra_data))
     }
 
     /// Compute a custom face integral for all the faces of each active cell in this representation.
@@ -614,33 +613,27 @@ impl VoronoiIntegrator {
     ///
     /// Returns a vector with for each active cell a vector of face integrals.
     pub fn compute_face_integrals<T: FaceIntegral>(&self) -> Vec<Vec<T>> {
-        cells_map!(self.cells, |cell| cell
-            .compute_face_integrals::<T, ()>(None))
+        cells_map!(self.cells, |cell| cell.compute_face_integrals(()))
     }
 
     pub fn compute_face_integrals_sym<T: FaceIntegral>(&self) -> Vec<Vec<T>> {
-        cells_map!(self.cells, |cell| cell.compute_face_integrals_sym::<T, ()>(
-            None,
-            &self.active_cells_mask()
-        ))
+        cells_map!(self.cells, |cell| cell
+            .compute_face_integrals_sym((), &self.active_cells_mask()))
     }
 
-    pub fn compute_face_integrals_with_data<T: FaceIntegral, D: Copy>(
+    pub fn compute_face_integrals_with_data<D: Copy, T: FaceIntegralWithData<D>>(
+        &self,
+        extra_data: D,
+    ) -> Vec<Vec<T>> {
+        cells_map!(self.cells, |cell| cell.compute_face_integrals(extra_data))
+    }
+
+    pub fn compute_face_integrals_sym_with_data<D: Copy, T: FaceIntegralWithData<D>>(
         &self,
         extra_data: D,
     ) -> Vec<Vec<T>> {
         cells_map!(self.cells, |cell| cell
-            .compute_face_integrals(Some(extra_data)))
-    }
-
-    pub fn compute_face_integrals_sym_with_data<T: FaceIntegral, D: Copy>(
-        &self,
-        extra_data: D,
-    ) -> Vec<Vec<T>> {
-        cells_map!(self.cells, |cell| cell.compute_face_integrals_sym(
-            Some(extra_data),
-            &self.active_cells_mask()
-        ))
+            .compute_face_integrals_sym(extra_data, &self.active_cells_mask()))
     }
 
     fn build_voronoi_cells(&self, faces: &mut [Vec<VoronoiFace>]) -> Vec<VoronoiCell> {

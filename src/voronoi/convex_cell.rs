@@ -2,6 +2,7 @@ use glam::DVec3;
 
 use crate::{
     geometry::{in_sphere_test_exact, intersect_planes, Plane},
+    integrals::{CellIntegralWithData, FaceIntegralWithData},
     simple_cycle::SimpleCycle,
 };
 
@@ -9,7 +10,6 @@ use super::{
     boundary::SimulationBoundary,
     convex_cell_alternative::ConvexCell as ConvexCellAlternative,
     half_space::HalfSpace,
-    integrals::{CellIntegral, FaceIntegral},
     Dimensionality, Generator,
 };
 
@@ -359,12 +359,9 @@ impl ConvexCell {
     }
 
     /// Compute a custom integrated quantity for this cell.
-    pub fn compute_cell_integral<T: CellIntegral, D: Copy>(&self, extra_data: Option<D>) -> T {
+    pub fn compute_cell_integral<D: Copy, T: CellIntegralWithData<D>>(&self, extra_data: D) -> T {
         // Compute integral from decomposition of convex cell
-        let mut integrator = match extra_data {
-            None => T::init(&self),
-            Some(data) => T::init_with_data(&self, data),
-        };
+        let mut integrator = T::init_with_data(&self, extra_data);
         for tet in self.decompose() {
             integrator.collect(tet.vertices[0], tet.vertices[1], tet.vertices[2], self.loc);
         }
@@ -377,9 +374,9 @@ impl ConvexCell {
     }
 
     /// Compute a custom integrated quantity for the faces of this cell (non-symmetric version).
-    pub fn compute_face_integrals<T: FaceIntegral, D: Copy>(
+    pub fn compute_face_integrals<D: Copy, T: FaceIntegralWithData<D>>(
         &self,
-        extra_data: Option<D>,
+        extra_data: D,
     ) -> Vec<T> {
         // Compute integrals from decomposition of convex cell
         let mut integrals = vec![None; self.clipping_planes.len()];
@@ -389,10 +386,8 @@ impl ConvexCell {
                 continue;
             }
             let integral = &mut integrals[tet.plane_idx];
-            let integral = integral.get_or_insert_with(|| match extra_data {
-                None => T::init(self, tet.plane_idx),
-                Some(data) => T::init_with_data(self, tet.plane_idx, data),
-            });
+            let integral =
+                integral.get_or_insert_with(|| T::init_with_data(self, tet.plane_idx, extra_data));
             integral.collect(tet.vertices[0], tet.vertices[1], tet.vertices[2], self.loc);
         }
 
@@ -407,9 +402,9 @@ impl ConvexCell {
     /// Symmetric version: skips faces that are shared with active cells with a smaller idx.
     ///
     /// - `mask`: A mask indicating which for which generators convex_cells are actually constructed.
-    pub fn compute_face_integrals_sym<T: FaceIntegral, D: Copy>(
+    pub fn compute_face_integrals_sym<D: Copy, T: FaceIntegralWithData<D>>(
         &self,
-        extra_data: Option<D>,
+        extra_data: D,
         mask: &[bool],
     ) -> Vec<T> {
         // Compute integrals from decomposition of convex cell
@@ -431,10 +426,7 @@ impl ConvexCell {
                     _ => (),
                 }
             }
-            let integral = integral.get_or_insert_with(|| match extra_data {
-                None => T::init(self, tet.plane_idx),
-                Some(data) => T::init_with_data(self, tet.plane_idx, data),
-            });
+            let integral = integral.get_or_insert_with(|| T::init_with_data(self, tet.plane_idx, extra_data));
             integral.collect(tet.vertices[0], tet.vertices[1], tet.vertices[2], self.loc);
         }
 

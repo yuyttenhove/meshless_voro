@@ -21,17 +21,24 @@ pub trait CellIntegral: Sized {
     /// Initialize a CellIntegral for the given ConvexCell.
     fn init(cell: &ConvexCell) -> Self;
 
-    /// Initialize a CellIntegral with some extra data.
-    fn init_with_data<T>(cell: &ConvexCell, _data: T) -> Self {
-        Self::init(cell)
-    }
-
     /// Update the state of the integrator using one oriented tetrahedron (with the cell's generator `gen` as top),
     /// which is part of a cell.
     fn collect(&mut self, v0: DVec3, v1: DVec3, v2: DVec3, gen: DVec3);
 
     /// Finalize the calculation and return the result
     fn finalize(self) -> Self;
+}
+
+/// Trait to implement new integrators that use external data in their calculation.
+pub trait CellIntegralWithData<D: Copy>: CellIntegral {
+    /// Initialize a CellIntegral with some extra data.
+    fn init_with_data(cell: &ConvexCell, data: D) -> Self;
+}
+
+impl<T: CellIntegral> CellIntegralWithData<()> for T {
+    fn init_with_data(cell: &ConvexCell, _data: ()) -> Self {
+        T::init(cell)
+    }
 }
 
 #[derive(Default)]
@@ -106,17 +113,24 @@ pub trait FaceIntegral: Clone {
     /// Initialize a FaceIntegral for the given ConvexCell and clipping_plane_index.
     fn init(cell: &ConvexCell, clipping_plane_idx: usize) -> Self;
 
-    /// Initialize a CellIntegral with some extra data.
-    fn init_with_data<T>(cell: &ConvexCell, clipping_plane_idx: usize, _data: T) -> Self {
-        Self::init(cell, clipping_plane_idx)
-    }
-
     /// Update the state of the integrator using one oriented tetrahedron (with the cell's generator `gen` as top),
     /// which is part of a cell.
     fn collect(&mut self, v0: DVec3, v1: DVec3, v2: DVec3, gen: DVec3);
 
     /// Finalize the calculation and return the result
     fn finalize(self) -> Self;
+}
+
+/// Trait to implement new integrators that use external data in their calculation.
+pub trait FaceIntegralWithData<D: Copy>: FaceIntegral {
+    /// Initialize a CellIntegral with some extra data.
+    fn init_with_data(cell: &ConvexCell, clipping_plane_idx: usize, data: D) -> Self;
+}
+
+impl<T: FaceIntegral> FaceIntegralWithData<()> for T {
+    fn init_with_data(cell: &ConvexCell, clipping_plane_idx: usize, _data: ()) -> Self {
+        T::init(cell, clipping_plane_idx)
+    }
 }
 
 #[derive(Default, Clone)]
