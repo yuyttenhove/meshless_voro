@@ -1,27 +1,42 @@
 [package]
 name = "meshless_voronoi"
-description = "An implementation of the Meshless Voronoi algorithm in rust."
+description = "An implementation of the Meshless Voronoi algorithm."
 version = "0.5.9"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/yuyttenhove/meshless_voro"
-keywords = ["voronoi","graphics","diagram"]
-categories = ["graphics","science", "mathematics"]
+documentation = "https://docs.rs/meshless_voronoi"
+keywords = ["voronoi", "graphics", "diagram"]
+categories = ["graphics", "science", "mathematics"]
 exclude = ["plot_vortess.py", "shell.nix"]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-glam = { version="0.23" }
-rstar = "0.10"
-rayon = { version = "1.7", optional = true }
+ahash = "0.8"
+document-features = "0.2"
+glam = "0.27"
 hdf5 = { version = "0.8", optional = true }
-rug = "1.19.1"
+malachite-base = { version = "0.4", optional = true }
+malachite-nz = { version = "0.4", optional = true }
+rayon = { version = "1", optional = true }
+rstar = "0.12"
+rug = { version = "1.24", optional = true }
 
 [features]
+default = ["malachite", "rayon"]
+## Enable parallel construction of the Voronoi grid.
 rayon = ["dep:rayon"]
+## Use the `malachite` crate for arbitrary precision integer arithmethic.
+## This is slower than `rug` but builds considerably faster and allows
+## the crate itself to remain under the MIT/Apache licenses.
+malachite = ["malachite-nz", "malachite-base"]
+## Use the `rug` crate for arbitrary precision integer arithmethic. This is
+## faster than `malachite` but depends on GNU GMP via the `gmp-mpfr-sys`
+## crate which makes this crate fall under the GPL license.
+rug = ["dep:rug"]
+## Allow saving Voronoi grids to
+## [HDF5 format](https://en.wikipedia.org/wiki/Hierarchical_Data_Format#HDF5).
 hdf5 = ["dep:hdf5"]
 
 [dev-dependencies]
-rand = "0.8"
 float-cmp = "0.9"
+rand = "0.8"

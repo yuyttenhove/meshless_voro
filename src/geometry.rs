@@ -1,8 +1,15 @@
-//! A few general purpose geometry functions and structs,
-//!  which might also be usefull for users of this library.
+//! A few general-purpose geometry functions and structs,
+//! which might also be useful for users of this library.
 
 use glam::{DMat3, DMat4, DVec3, DVec4};
-use rug::{Assign, Integer};
+#[cfg(not(feature = "rug"))]
+use malachite_base::num::arithmetic::traits::Sign;
+#[cfg(not(feature = "rug"))]
+use malachite_nz::integer::Integer;
+#[cfg(feature = "rug")]
+use rug::Integer;
+#[cfg(not(feature = "rug"))]
+use std::cmp::Ordering;
 
 /// A simple plane struct.
 #[derive(Clone, Debug)]
@@ -14,7 +21,10 @@ pub struct Plane {
 impl Plane {
     /// Create a plane from a normal vector and a point on the plane.
     pub fn new(n: DVec3, p: DVec3) -> Self {
-        Self { n, p }
+        Self {
+            n,
+            p,
+        }
     }
 
     /// Project a point onto plane.
@@ -32,23 +42,24 @@ impl Plane {
     }
 
     #[allow(dead_code)]
-    pub(crate) fn intersects_sphere(&self, sphere: &Sphere) -> bool {
+    pub fn intersects_sphere(&self, sphere: &Sphere) -> bool {
         sphere.contains(self.project_onto(sphere.center))
     }
 
     #[allow(dead_code)]
-    pub(crate) fn intersects_aabb(&self, aabb: &AABB) -> bool {
+    pub(crate) fn intersects_aabb(&self, aabb: &Aabb) -> bool {
         // interval radius of projection of AABB on planes normal
         let r = self.n.abs().dot(aabb.extent);
         // distance from box center to plane
         let d = (self.p - aabb.center).dot(self.n).abs();
 
-        return d <= r * (1. + 1e-10);
+        d <= r * (1. + 1e-10)
     }
 }
 
 /// Calculate the intersection of 3 planes.
-/// see: https://mathworld.wolfram.com/Plane-PlaneIntersection.html
+///
+/// See <https://mathworld.wolfram.com/Plane-PlaneIntersection.html>.
 pub fn intersect_planes(p0: &Plane, p1: &Plane, p2: &Plane) -> DVec3 {
     let det = DMat3::from_cols(p0.n, p1.n, p2.n).determinant();
     assert!(det != 0., "Degenerate 3-plane intersection!");
@@ -61,7 +72,8 @@ pub fn intersect_planes(p0: &Plane, p1: &Plane, p2: &Plane) -> DVec3 {
 
 /// Compute the signed volume of a oriented tetrahedron.
 ///
-/// The volume is positive if v0,v1,v2 are ordered counterclockwise as seen from v3.
+/// The volume is positive if `v0`, `v1` and `v2` are ordered counterclockwise,
+/// as seen from v3.
 pub fn signed_volume_tet(v0: DVec3, v1: DVec3, v2: DVec3, v3: DVec3) -> f64 {
     let v01 = v1 - v0;
     let v02 = v2 - v0;
@@ -70,8 +82,11 @@ pub fn signed_volume_tet(v0: DVec3, v1: DVec3, v2: DVec3, v3: DVec3) -> f64 {
     DMat3::from_cols(v01, v02, v03).determinant() / 6.
 }
 
-/// Calculates the signed area of the ground face `v0`, `v1`, `v2` of the tetrahedron with top `t`.
-/// The area is positive if the the vertices are ordered counterclockwise as seen from t.
+/// Calculates the signed area of the ground face `v0`, `v1`, `v2` of the
+/// tetrahedron with top `t`.
+///
+/// The area is positive if the the vertices are ordered counterclockwise
+/// as seen from t.
 pub fn signed_area_tri(v0: DVec3, v1: DVec3, v2: DVec3, t: DVec3) -> f64 {
     // Normal vector with the area of the ground face as length
     let n = 0.5 * (v1 - v0).cross(v2 - v0);
@@ -80,7 +95,7 @@ pub fn signed_area_tri(v0: DVec3, v1: DVec3, v2: DVec3, t: DVec3) -> f64 {
 }
 
 #[derive(Clone)]
-pub(crate) struct Sphere {
+pub struct Sphere {
     pub center: DVec3,
     pub radius: f64,
 }
@@ -91,8 +106,11 @@ impl Sphere {
         radius: 0.,
     };
 
-    pub(crate) fn new(center: DVec3, radius: f64) -> Self {
-        Self { center, radius }
+    pub fn new(center: DVec3, radius: f64) -> Self {
+        Self {
+            center,
+            radius,
+        }
     }
 
     pub fn from_boundary_points(points: &[DVec3]) -> Self {
@@ -108,14 +126,17 @@ impl Sphere {
         }
     }
 
-    /// Create a sphere through two given points with center the midpoint between the two points
-    fn from_two_points(a: DVec3, b: DVec3) -> Self {
+    /// Create a sphere through two given points with center the midpoint
+    /// between the two points
+    pub fn from_two_points(a: DVec3, b: DVec3) -> Self {
         Self::new(0.5 * (a + b), 0.5 * a.distance(b))
     }
 
-    /// Circumscribes sphere through 3 given points with center on the plane spanned by the points
-    /// See: https://www.wikiwand.com/en/Circumscribed_circle#Higher_dimensions
-    fn from_three_points(a: DVec3, b: DVec3, c: DVec3) -> Sphere {
+    /// Circumscribes sphere through three given points with center on the plane
+    /// spanned by the points
+    ///
+    /// See <https://www.wikiwand.com/en/Circumscribed_circle#Higher_dimensions>.
+    pub fn from_three_points(a: DVec3, b: DVec3, c: DVec3) -> Sphere {
         let a = a - c;
         let b = b - c;
 
@@ -131,8 +152,10 @@ impl Sphere {
         Self::new(center, radius)
     }
 
-    /// Circumscribed sphere through 4 points. See: https://mathworld.wolfram.com/Circumsphere.html
-    fn from_four_points(a: DVec3, b: DVec3, c: DVec3, d: DVec3) -> Sphere {
+    /// Circumscribed sphere through four points.
+    ///
+    /// See <https://mathworld.wolfram.com/Circumsphere.html>.
+    pub fn from_four_points(a: DVec3, b: DVec3, c: DVec3, d: DVec3) -> Sphere {
         let x = DVec4 {
             x: a.x,
             y: b.x,
@@ -169,7 +192,7 @@ impl Sphere {
         Self::new(center, radius)
     }
 
-    /// Extend this sphere to include x if necessary
+    /// Extend this sphere to include `x`, if necessary.
     pub fn extend(mut self, x: DVec3) -> Self {
         if !self.contains(x) {
             let opposite = self.center - self.radius * (x - self.center).normalize();
@@ -185,10 +208,12 @@ impl Sphere {
     }
 }
 
-/// Test whether `v` lies inside or outside the circumsphere around `a`, `b`, `c` and `d`.
-/// See springel (2010) eq. (3).
-/// The result is negative when `v` lies inside and positive when `v` lies outside the circumsphere
-/// We work in relative coordinates to simplify the determinant to a 4x4 determinant.
+/// Test whether `v` lies inside or outside the circumsphere around `a`, `b`,
+/// `c` and `d`. See Springel (2010) eq. (3).
+///
+/// The result is negative when `v` lies inside and positive when `v` lies
+/// outside the circumsphere. We work in relative coordinates to simplify the
+/// determinant to a 4×4 determinant.
 pub(crate) fn in_sphere_test(a: DVec3, b: DVec3, c: DVec3, d: DVec3, v: DVec3) -> f64 {
     let b = (b - a).extend((b - a).length_squared());
     let c = (c - a).extend((c - a).length_squared());
@@ -204,9 +229,9 @@ macro_rules! big_int {
             Integer::from($a[0] - $b[0]),
             Integer::from($a[0] - $b[1]),
             Integer::from($a[0] - $b[2]),
-            Integer::new(),
+            Integer::default(),
         ];
-        let mut norm2 = Integer::new();
+        let mut norm2 = Integer::default();
         norm2 += &big_int_diff[0] * &big_int_diff[0];
         norm2 += &big_int_diff[1] * &big_int_diff[1];
         norm2 += &big_int_diff[2] * &big_int_diff[2];
@@ -217,7 +242,7 @@ macro_rules! big_int {
 
 macro_rules! big_int_det2x2 {
     ($a:expr, $b:expr, $c:expr, $d:expr, $det:expr) => {{
-        $det.assign(0);
+        $det = Integer::default();
         $det += &$a * &$d;
         $det -= &$b * &$c;
     }};
@@ -225,7 +250,7 @@ macro_rules! big_int_det2x2 {
 
 macro_rules! big_int_det3x3 {
     ($a0:expr, $a1:expr, $a2:expr, $b0:expr, $b1:expr, $b2:expr, $c0:expr, $c1:expr, $c2:expr, $tmp:expr, $det:expr) => {
-        $det.assign(0);
+        $det = Integer::default();
         big_int_det2x2!($b1, $b2, $c1, $c2, $tmp);
         $det += &$a0 * &$tmp;
         big_int_det2x2!($b0, $b2, $c0, $c2, $tmp);
@@ -235,21 +260,21 @@ macro_rules! big_int_det3x3 {
     };
 }
 
-/// Test whether `v` lies inside or outside the circumsphere around `a`, `b`, `c` and `d` using
-/// exact integer arithmatic.
+/// Test whether `v` lies inside or outside the circumsphere around `a`, `b`,
+/// `c` and `d` using exact integer arithmetic.
 pub(crate) fn in_sphere_test_exact(a: &[i64], b: &[i64], c: &[i64], d: &[i64], v: &[i64]) -> f64 {
     let b = big_int!(b, a);
     let c = big_int!(c, a);
     let d = big_int!(d, a);
     let v = big_int!(v, a);
 
-    // We need to compute the sign of the 4x4 determinant with b, c, d, v as rows.
-    let mut determinant = Integer::new();
+    // We need to compute the sign of the 4×4 determinant with b, c, d, v as rows.
+    let mut determinant = Integer::default();
 
     // Let's do it in 4 steps by developing over the last column
     // Step 1 (b-row):
-    let mut tmp1 = Integer::new();
-    let mut det = Integer::new();
+    let mut tmp1: Integer;
+    let mut det: Integer;
     big_int_det3x3!(c[0], c[1], c[2], d[0], d[1], d[2], v[0], v[1], v[2], tmp1, det);
     determinant += &b[3] * &det;
     // Step 2 (c-row)
@@ -262,12 +287,21 @@ pub(crate) fn in_sphere_test_exact(a: &[i64], b: &[i64], c: &[i64], d: &[i64], v
     big_int_det3x3!(b[0], b[1], b[2], c[0], c[1], c[2], d[0], d[1], d[2], tmp1, det);
     determinant -= &v[3] * &det;
 
-    determinant.signum().to_f64()
+    #[cfg(feature = "rug")]
+    let result = determinant.signum().to_f64();
+    #[cfg(not(feature = "rug"))]
+    let result = match determinant.sign() {
+        Ordering::Less => -1.0,
+        Ordering::Equal => 0.0,
+        Ordering::Greater => 1.0,
+    };
+
+    result
 }
 
 #[derive(Clone)]
 #[allow(dead_code)]
-pub(crate) struct AABB {
+pub(crate) struct Aabb {
     min: DVec3,
     max: DVec3,
     center: DVec3,
@@ -275,7 +309,7 @@ pub(crate) struct AABB {
 }
 
 #[allow(dead_code)]
-impl AABB {
+impl Aabb {
     pub const EMPTY: Self = Self {
         min: DVec3::ZERO,
         max: DVec3::ZERO,
@@ -286,7 +320,7 @@ impl AABB {
     pub fn new(min: DVec3, max: DVec3) -> Self {
         let center = 0.5 * (min + max);
         let extent = max - center;
-        AABB {
+        Aabb {
             min,
             max,
             center,
@@ -311,7 +345,7 @@ mod test {
 
     use crate::geometry::{signed_area_tri, signed_volume_tet};
 
-    use super::{Plane, Sphere, AABB};
+    use super::{Aabb, Plane, Sphere};
 
     #[test]
     fn test_signed_volume() {
@@ -428,7 +462,7 @@ mod test {
 
     #[test]
     fn test_aabb_plane_intersection() {
-        let aabb = AABB::new(DVec3::NEG_ONE, DVec3::X);
+        let aabb = Aabb::new(DVec3::NEG_ONE, DVec3::X);
         let n = DVec3 {
             x: 1.,
             y: 2.,

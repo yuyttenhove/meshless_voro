@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use ahash::HashSet;
 
 use glam::DVec3;
 
@@ -12,22 +12,22 @@ pub(crate) trait BoundingSphereSolver {
 pub struct Welzl;
 
 impl Welzl {
-    /// Recursively compute the bounding sphere for the given points with the given boundary points on its surface.
+    /// Recursively compute the bounding sphere for the given points with the
+    /// given boundary points on its surface.
     fn bounding_sphere_recursive(points: &mut Vec<DVec3>, boundary: &mut Vec<DVec3>) -> Sphere {
         if points.is_empty() || boundary.len() == 4 {
             // base case: No other points left or maximal number of boundary points
-            return Sphere::from_boundary_points(&boundary);
+            return Sphere::from_boundary_points(boundary);
         }
 
         // Pop test point from points
-        let point = points
-            .pop()
-            .expect("Points cannot be empty at this point (see base case)");
+        let point = points.pop().expect("Points cannot be empty at this point (see base case)");
 
         // recurse: find solution of remaining points
         let mut solution = Self::bounding_sphere_recursive(points, boundary);
         if !solution.contains(point) {
-            // The proposed solution does not contain our test point, add it to the boundary and try again.
+            // The proposed solution does not contain our test point, add it to the boundary
+            // and try again.
             boundary.push(point);
             solution = Self::bounding_sphere_recursive(points, boundary);
             // revert push to not mess up recursion
@@ -52,10 +52,11 @@ impl BoundingSphereSolver for Welzl {
     }
 }
 
-pub(crate) struct EPOS6;
+pub(crate) struct Epos6;
 
-/// See: Extremal Points Optimal Sphere, Larsson 2008 (https://ep.liu.se/ecp/034/009/ecp083409.pdf)
-impl BoundingSphereSolver for EPOS6 {
+/// See: Extremal Points Optimal Sphere,
+/// [Larsson 2008](https://ep.liu.se/ecp/034/009/ecp083409.pdf).
+impl BoundingSphereSolver for Epos6 {
     fn bounding_sphere(points: &[DVec3]) -> Sphere {
         let mut min = DVec3::splat(f64::INFINITY);
         let mut max = DVec3::splat(f64::NEG_INFINITY);
@@ -90,12 +91,9 @@ impl BoundingSphereSolver for EPOS6 {
 
         // Get sphere from extremal points
         let mut extremal_points = HashSet::new();
-        extremal_points.extend(idx_min.into_iter());
-        extremal_points.extend(idx_max.into_iter());
-        let extremal_points = extremal_points
-            .into_iter()
-            .map(|i| points[i])
-            .collect::<Vec<_>>();
+        extremal_points.extend(idx_min);
+        extremal_points.extend(idx_max);
+        let extremal_points = extremal_points.into_iter().map(|i| points[i]).collect::<Vec<_>>();
         let mut sphere = Welzl::bounding_sphere(&extremal_points);
 
         // Extend sphere if necessary

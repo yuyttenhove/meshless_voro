@@ -53,10 +53,6 @@ impl SimulationBoundary {
         let loc = DVec3::splat(1.) + (loc - self.anchor) * self.inverse_width;
         // convert to bits, only mantissa should have nonzero bits at this point,
         // so these numbers can be interpreted as rescaled u64 integer coordinates
-        [
-            loc.x.to_bits() as i64,
-            loc.y.to_bits() as i64,
-            loc.z.to_bits() as i64,
-        ]
+        [loc.x.to_bits() as i64, loc.y.to_bits() as i64, loc.z.to_bits() as i64]
     }
 }

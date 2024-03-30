@@ -15,6 +15,7 @@ pub(super) struct HalfSpace {
 
 impl HalfSpace {
     const EPSILON: f64 = 1e-13;
+
     pub fn new(n: DVec3, p: DVec3, right_idx: Option<usize>, shift: Option<DVec3>) -> Self {
         HalfSpace {
             plane: Plane::new(n, p),
@@ -26,8 +27,9 @@ impl HalfSpace {
     }
 
     /// Determine on which side of the plane a given `vertex` lies.
-    /// Returns `1.` if the `vertex` lies on the positive half space (direction of normal),
-    /// `-1.` when the `vertex` lies on the negative half space and `0.` when a more precise test is needed
+    /// Returns `1.` if the `vertex` lies on the positive half space (direction
+    /// of normal), `-1.` when the `vertex` lies on the negative half space
+    /// and `0.` when a more precise test is needed
     pub fn clip(&self, vertex: DVec3) -> f64 {
         let clip = self.plane.n.dot(vertex) - self.d;
         if clip.abs() < self.errb {

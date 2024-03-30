@@ -13,11 +13,7 @@ pub fn nn_iter<'a>(
     rtree: &'a RTree<Generator>,
     loc: DVec3,
 ) -> Box<dyn Iterator<Item = (usize, Option<DVec3>)> + 'a> {
-    Box::new(
-        rtree
-            .nearest_neighbor_iter(&[loc.x, loc.y, loc.z])
-            .map(|g| (g.id(), None)),
-    )
+    Box::new(rtree.nearest_neighbor_iter(&[loc.x, loc.y, loc.z]).map(|g| (g.id(), None)))
 }
 
 pub(crate) fn wrapping_nn_iter<'a>(
@@ -76,7 +72,8 @@ impl<'a> RTreeWrappingNearestNeighbourIter<'a, Generator> {
             query_point,
         };
 
-        // Add the children of this node to the heap and also shifted versions of it for all directions
+        // Add the children of this node to the heap and also shifted versions of it for
+        // all directions
         let j_range = match dimensionality {
             Dimensionality::Dimensionality2D | Dimensionality::Dimensionality3D => -1..=1,
             Dimensionality::Dimensionality1D => 0..=0,
@@ -88,11 +85,7 @@ impl<'a> RTreeWrappingNearestNeighbourIter<'a, Generator> {
         for i in -1..=1 {
             for j in j_range.clone() {
                 for k in k_range.clone() {
-                    let shift = [
-                        i as f64 * width[0],
-                        j as f64 * width[1],
-                        k as f64 * width[2],
-                    ];
+                    let shift = [i as f64 * width[0], j as f64 * width[1], k as f64 * width[2]];
                     result.extend_heap(root.children(), shift);
                 }
             }

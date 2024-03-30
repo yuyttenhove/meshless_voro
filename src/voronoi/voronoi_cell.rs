@@ -34,9 +34,11 @@ impl VoronoiCell {
         }
     }
 
-    /// Build a Voronoi cell from a ConvexCell by computing the relevant integrals.
+    /// Build a [`VoronoiCell`] from a [`ConvexCell`] by computing the relevant
+    /// integrals.
     ///
-    /// Any Voronoi faces that are created by the construction of this cell are stored in the `faces` vector.
+    /// Any Voronoi faces that are created by the construction of this cell are
+    /// stored in the `faces` vector.
     pub(super) fn from_convex_cell<'a>(
         convex_cell: &'a ConvexCell,
         faces: &mut Vec<VoronoiFace>,
@@ -47,9 +49,7 @@ impl VoronoiCell {
         let mut volume_centroid_integral = VolumeCentroidIntegrator::init();
 
         let mut maybe_faces: Vec<Option<VoronoiFaceBuilder<'a>>> =
-            (0..convex_cell.clipping_planes.len())
-                .map(|_| None)
-                .collect();
+            (0..convex_cell.clipping_planes.len()).map(|_| None).collect();
 
         // Helper function to decide which faces should be constucted.
         let maybe_init_face = |maybe_face: &mut Option<VoronoiFaceBuilder<'a>>,
@@ -75,7 +75,8 @@ impl VoronoiCell {
             }
         };
 
-        // Loop over the decomposition of this convex cell into tetrahedra to compute the necessary integrals/barycenter calculations
+        // Loop over the decomposition of this convex cell into tetrahedra to compute
+        // the necessary integrals/barycenter calculations
         for tet in convex_cell.decompose() {
             // Update the volume and centroid of the cell
             volume_centroid_integral.collect(
@@ -100,7 +101,10 @@ impl VoronoiCell {
             }
         }
 
-        let VolumeCentroidIntegrator { volume, centroid } = volume_centroid_integral.finalize();
+        let VolumeCentroidIntegrator {
+            volume,
+            centroid,
+        } = volume_centroid_integral.finalize();
 
         VoronoiCell::init(loc, centroid, volume, convex_cell.safety_radius)
     }
@@ -130,25 +134,27 @@ impl VoronoiCell {
         self.safety_radius
     }
 
-    /// Get the indices of the faces that have this cell as its left or right neighbour.
+    /// Get the indices of the faces that have this cell as its left or right
+    /// neighbour.
     pub fn face_indices<'a>(&'a self, voronoi: &'a Voronoi) -> &[usize] {
         &voronoi.cell_face_connections
             [self.face_connections_offset..(self.face_connections_offset + self.face_count)]
     }
 
-    /// Get an `Iterator` over the Voronoi faces that have this cell as their left _or_ right generator.
+    /// Get an `Iterator` over the Voronoi faces that have this cell as their
+    /// left _or_ right generator.
     pub fn faces<'a>(&'a self, voronoi: &'a Voronoi) -> impl Iterator<Item = &VoronoiFace> + 'a {
-        self.face_indices(voronoi)
-            .iter()
-            .map(|&i| &voronoi.faces[i])
+        self.face_indices(voronoi).iter().map(|&i| &voronoi.faces[i])
     }
 
-    /// Get the offset of the slice of the indices of this cell's faces in the `Voronoi::cell_face_connections` array.
+    /// Get the offset of the slice of the indices of this cell's faces in the
+    /// `Voronoi::cell_face_connections` array.
     pub fn face_connections_offset(&self) -> usize {
         self.face_connections_offset
     }
 
-    /// Get the length of the slice of the indices of this cell's faces in the `Voronoi::cell_face_connections` array.
+    /// Get the length of the slice of the indices of this cell's faces in the
+    /// `Voronoi::cell_face_connections` array.
     pub fn face_count(&self) -> usize {
         self.face_count
     }

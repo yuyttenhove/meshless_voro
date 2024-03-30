@@ -1,8 +1,7 @@
-use glam::{DVec3, UVec3};
-use std::cmp::{Ord, Ordering};
-use std::collections::BinaryHeap;
-
 use crate::part::Part;
+
+use glam::{DVec3, UVec3};
+use std::{cmp::Ordering, collections::BinaryHeap};
 
 struct Cell {
     loc: DVec3,
@@ -12,7 +11,8 @@ struct Cell {
 }
 
 impl Cell {
-    /// Closest point within a cell to a given point. If the point is in the cell, the point itself is returned.
+    /// Closest point within a cell to a given point. If the point is in the
+    /// cell, the point itself is returned.
     fn closest_loc(&self, pos: DVec3) -> DVec3 {
         let mut res = self.loc;
 
@@ -33,7 +33,8 @@ impl Cell {
         self.closest_loc(pos).distance_squared(pos)
     }
 
-    /// The minimal distance to the faces of a cell from a point within that cell.
+    /// The minimal distance to the faces of a cell from a point within that
+    /// cell.
     fn min_distance_to_face(&self, pos: DVec3) -> f64 {
         (pos.x - self.loc.x)
             .min(self.loc.x + self.width.x - pos.x)
@@ -105,15 +106,13 @@ impl Space {
                 let i = (rel_pos.x / self.width.x * self.cdim.x as f64).floor() as i32;
                 let j = (rel_pos.y / self.width.y * self.cdim.y as f64).floor() as i32;
                 let k = (rel_pos.z / self.width.z * self.cdim.z as f64).floor() as i32;
-                let cid = self
-                    .get_cid(i, j, k)
-                    .expect("Index out of bounds during construction!");
+                let cid = self.get_cid(i, j, k).expect("Index out of bounds during construction!");
                 Part::new(*p_x, cid, pid)
             })
             .collect();
 
         // sort by cid
-        parts.sort_by(|p_a, p_b| p_a.cid().cmp(&p_b.cid()));
+        parts.sort_by_key(|p_a| p_a.cid());
 
         // add parts to space and set cell offsets and counts
         let mut offset = 0;
@@ -136,7 +135,8 @@ impl Space {
     }
 
     pub fn knn(&self, k: usize) -> Vec<Vec<usize>> {
-        /// HeapEntry struct used to build MaxHeap of nearest neighbours of particles.
+        /// HeapEntry struct used to build MaxHeap of nearest neighbours of
+        /// particles.
         #[derive(PartialEq)]
         struct HeapEntry {
             idx: usize,
@@ -227,12 +227,12 @@ impl Space {
                 r += 1;
             }
 
-            // now collect the particles nearest neighbours from the MaxHeap in increasing distance
+            // now collect the particles nearest neighbours from the MaxHeap in increasing
+            // distance
             debug_assert_eq!(h.len(), k);
             for i in (0..k).rev() {
-                let entry = h
-                    .pop()
-                    .expect("We should be able to pop k entries from a Heap of length k");
+                let entry =
+                    h.pop().expect("We should be able to pop k entries from a Heap of length k");
                 nn[part.id()][i] = entry.idx;
             }
         }
@@ -385,7 +385,8 @@ mod tests {
             // Get max distance to knn
             let max_d_2 = part.distance_squared(&space.parts[nn[k - 1]]);
 
-            // loop over the other parts and check that they are either in the nearest neighbours or farther away than max_d_2
+            // loop over the other parts and check that they are either in the nearest
+            // neighbours or farther away than max_d_2
             for (j, other) in space.parts.iter().enumerate() {
                 if j == i {
                     continue;

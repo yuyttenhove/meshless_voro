@@ -2,7 +2,8 @@ pub trait GetMutMultiple {
     type Output;
 
     /// Creates mutable references to elements at 3 indices `i`, `j` and `k`.
-    /// These indices are assumed to be distinct, but this is not checked by this function!
+    /// These indices are assumed to be distinct, but this is not checked by
+    /// this function!
     unsafe fn get_3_mut_unchecked(
         &mut self,
         i: usize,
@@ -10,7 +11,8 @@ pub trait GetMutMultiple {
         k: usize,
     ) -> (&mut Self::Output, &mut Self::Output, &mut Self::Output);
 
-    /// Creates mutable references to elements at 3 indices `i`, `j` and `k`, after checking that the indices are indeed all different.
+    /// Creates mutable references to elements at 3 indices `i`, `j` and `k`,
+    /// after checking that the indices are indeed all different.
     fn get_3_mut(
         &mut self,
         i: usize,

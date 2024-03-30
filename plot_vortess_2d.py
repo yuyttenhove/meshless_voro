@@ -1,16 +1,15 @@
+
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
 from pathlib import Path
 import h5py
 
-
 def read_faces(fname: Path) -> np.ndarray:
     data = h5py.File(fname, "r")
     start = data["Faces/Start"][:][:, :2]
     end = data["Faces/End"][:][:, :2]
     return np.stack([start, end], axis=1)
-
 
 def read_generators(fname: Path) -> np.ndarray:
     data = h5py.File(fname, "r")
@@ -19,7 +18,6 @@ def read_generators(fname: Path) -> np.ndarray:
 def read_centroids(fname: Path) -> np.ndarray:
     data = h5py.File(fname, "r")
     return data["Cells/Centroid"][:]
-
 
 def plot(faces: np.ndarray, generators = None, centroids = None):
     lines = LineCollection(faces, color="r", lw=1)
@@ -36,14 +34,12 @@ def plot(faces: np.ndarray, generators = None, centroids = None):
     fig.tight_layout()
     fig.savefig("test.png", dpi=300)
 
-
 def main(fname):
     plot(
         faces = read_faces(fname),
         generators = read_generators(fname),
         centroids = read_centroids(fname),
     )
-
 
 if __name__ == "__main__":
     main("test_2_d.hdf5")
