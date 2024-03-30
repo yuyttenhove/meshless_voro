@@ -2,13 +2,11 @@ use super::{
     boundary::SimulationBoundary, convex_cell_alternative::ConvexCell as ConvexCellAlternative,
     half_space::HalfSpace, Dimensionality, Generator,
 };
-
 use crate::{
     geometry::{in_sphere_test_exact, intersect_planes, Plane},
     integrals::{CellIntegralWithData, FaceIntegralWithData},
     simple_cycle::SimpleCycle,
 };
-
 use glam::DVec3;
 
 /// A vertex of a [`ConvexCell`].
@@ -40,9 +38,9 @@ impl Vertex {
         let loc =
             intersect_planes(&half_spaces[i].plane, &half_spaces[j].plane, &half_spaces[k].plane);
         let d_loc = match dimensionality {
-            Dimensionality::Dimensionality1D => DVec3::new(loc.x, 0., 0.),
-            Dimensionality::Dimensionality2D => DVec3::new(loc.x, loc.y, 0.),
-            Dimensionality::Dimensionality3D => loc,
+            Dimensionality::OneD => DVec3::new(loc.x, 0., 0.),
+            Dimensionality::TwoD => DVec3::new(loc.x, loc.y, 0.),
+            Dimensionality::ThreeD => loc,
         };
         Vertex {
             loc,
@@ -457,7 +455,7 @@ impl From<ConvexCellAlternative> for ConvexCell {
                     v.repr.2,
                     &clipping_planes,
                     convex_cell_alt.loc,
-                    Dimensionality::Dimensionality3D,
+                    Dimensionality::ThreeD,
                 )
             })
             .collect::<Vec<_>>();
@@ -478,13 +476,11 @@ impl From<ConvexCellAlternative> for ConvexCell {
 mod test {
     use super::*;
 
-    const DIM3D: usize = 3;
-
     #[test]
     fn test_init_cuboid() {
         let anchor = DVec3::splat(1.);
         let width = DVec3::splat(4.);
-        let cell = SimulationBoundary::cuboid(anchor, width, false, DIM3D.into());
+        let cell = SimulationBoundary::cuboid(anchor, width, false, Dimensionality::ThreeD.into());
 
         assert_eq!(cell.clipping_planes.len(), 6);
     }
@@ -494,12 +490,15 @@ mod test {
         let anchor = DVec3::splat(1.);
         let width = DVec3::splat(2.);
         let loc = DVec3::splat(2.);
-        let volume = SimulationBoundary::cuboid(anchor, width, false, DIM3D.into());
+        let volume =
+            SimulationBoundary::cuboid(anchor, width, false, Dimensionality::ThreeD.into());
         let mut cell = ConvexCell::init(loc, 0, &volume);
 
         let ngb = DVec3::splat(2.5);
-        let generators =
-            [Generator::new(0, loc, DIM3D.into()), Generator::new(1, ngb, DIM3D.into())];
+        let generators = [
+            Generator::new(0, loc, Dimensionality::ThreeD.into()),
+            Generator::new(1, ngb, Dimensionality::ThreeD.into()),
+        ];
         let dx = cell.loc - ngb;
         let dist = dx.length();
         let n = dx / dist;

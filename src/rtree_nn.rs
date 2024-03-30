@@ -1,9 +1,7 @@
-use std::collections::BinaryHeap;
-
+use crate::voronoi::{Dimensionality, Generator};
 use glam::DVec3;
 use rstar::{Envelope, ParentNode, Point, PointDistance, RTree, RTreeNode, RTreeObject, AABB};
-
-use crate::voronoi::{Dimensionality, Generator};
+use std::collections::BinaryHeap;
 
 pub(crate) fn build_rtree(generators: &[Generator]) -> RTree<Generator> {
     RTree::bulk_load(generators.to_vec())
@@ -75,12 +73,12 @@ impl<'a> RTreeWrappingNearestNeighbourIter<'a, Generator> {
         // Add the children of this node to the heap and also shifted versions of it for
         // all directions
         let j_range = match dimensionality {
-            Dimensionality::Dimensionality2D | Dimensionality::Dimensionality3D => -1..=1,
-            Dimensionality::Dimensionality1D => 0..=0,
+            Dimensionality::TwoD | Dimensionality::ThreeD => -1..=1,
+            Dimensionality::OneD => 0..=0,
         };
         let k_range = match dimensionality {
-            Dimensionality::Dimensionality3D => -1..=1,
-            Dimensionality::Dimensionality1D | Dimensionality::Dimensionality2D => 0..=0,
+            Dimensionality::ThreeD => -1..=1,
+            Dimensionality::OneD | Dimensionality::TwoD => 0..=0,
         };
         for i in -1..=1 {
             for j in j_range.clone() {

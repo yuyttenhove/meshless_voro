@@ -13,11 +13,11 @@ impl Generator {
     pub(super) fn new(id: usize, loc: DVec3, dimensionality: Dimensionality) -> Self {
         let mut loc = loc;
         match dimensionality {
-            Dimensionality::Dimensionality1D => {
+            Dimensionality::OneD => {
                 loc.y = 0.;
                 loc.z = 0.;
             }
-            Dimensionality::Dimensionality2D => loc.z = 0.,
+            Dimensionality::TwoD => loc.z = 0.,
             _ => (),
         }
         Self {

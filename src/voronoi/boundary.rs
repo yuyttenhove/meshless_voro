@@ -20,13 +20,11 @@ impl SimulationBoundary {
         if periodic {
             anchor.x -= width.x;
             width.x *= 3.;
-            if let Dimensionality::Dimensionality2D | Dimensionality::Dimensionality3D =
-                dimensionality
-            {
+            if let Dimensionality::TwoD | Dimensionality::ThreeD = dimensionality {
                 anchor.y -= width.y;
                 width.y *= 3.;
             };
-            if let Dimensionality::Dimensionality3D = dimensionality {
+            if let Dimensionality::ThreeD = dimensionality {
                 anchor.z -= width.z;
                 width.z *= 3.;
             }

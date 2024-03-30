@@ -38,6 +38,22 @@
 //! - Evaluation of *custom integrals* for cells (e.g. weighted centroid) and
 //!   faces (e.g. solid angles).
 //!
+//! # Integer Arithmetic Backend
+//!
+//! You can select from three backends for arbitrary precision integer
+//! arithmetic.
+//!
+//! - [`dashu`](https://crates.io/crates/dashu) (MIT/Apache 2.0) runs the test
+//!   suit at the same speed as `rug`. This is the default backend.
+//!
+//! - [`malachite`](https://crates.io/crates/malachite) (LGPL-3.0-only) runs the
+//!   test suite about 6% slower than `rug` but builds considerably faster.
+//!
+//! - [`rug`](https://crates.io/crates/rug) (LGPL-3.0+) runs the test suite
+//!   faster than `malachite` but depends on GNU GMP via the `gmp-mpfr-sys`
+//!   crate which requires a C compiler to build and has the slowest build time
+//!   thus.
+//!
 //! # Cargo Features
 #![doc = document_features::document_features!()]
 
@@ -45,6 +61,10 @@
     all(feature = "rug", feature = "malachite"),
     all(feature = "rug", feature = "malachite-base"),
     all(feature = "rug", feature = "malachite-nz"),
+    all(feature = "dashu", feature = "malachite"),
+    all(feature = "dashu", feature = "malachite-base"),
+    all(feature = "dashu", feature = "malachite-nz"),
+    all(feature = "rug", feature = "dashu"),
 ))]
 compile_error!("Illegal feature combination selected");
 

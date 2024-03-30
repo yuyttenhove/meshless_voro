@@ -1,5 +1,4 @@
 use crate::part::Part;
-
 use glam::{DVec3, UVec3};
 use std::{cmp::Ordering, collections::BinaryHeap};
 

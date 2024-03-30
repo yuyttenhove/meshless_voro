@@ -1,5 +1,4 @@
 # `meshless_voronoi`
-
 <!-- cargo-rdme start -->
 
 **An implementation of the
@@ -42,18 +41,37 @@ info:
 - Evaluation of *custom integrals* for cells (e.g. weighted centroid) and
   faces (e.g. solid angles).
 
+## Integer Arithmetic Backend
+
+You can select from three backends for arbitrary precision integer
+arithmetic.
+
+- [`dashu`](https://crates.io/crates/dashu) (MIT/Apache 2.0) runs the test
+  suit at the same speed as `rug`. This is the default backend.
+
+- [`malachite`](https://crates.io/crates/malachite) (LGPL-3.0-only) runs the
+  test suite about 6% slower than `rug` but builds considerably faster.
+
+- [`rug`](https://crates.io/crates/rug) (LGPL-3.0+) runs the test suite
+  faster than `malachite` but depends on GNU GMP via the `gmp-mpfr-sys`
+  crate which requires a C compiler to build and has the slowest build time
+  thus.
+
 ## Cargo Features
 
 <!-- cargo-rdme end -->
-- `rayon` (enabled by default) — Enable parallel construction of the Voronoi
+- `rayon` (enabled by default) – Enable parallel construction of the Voronoi
   grid.
 
-- `malachite` (enabled by default) — Use the `malachite` crate for arbitrary
-  precision integer arithmethic. This is slower than rug but builds considerably
-  faster and allows the crate itself to remain under the MIT/Apache licenses.
+- `dashu` – Use the `dashu` crate as the arbitrary precision integer arithmethic backend.
 
-- `rug` — Use the rug crate for arbitrary precision intger arithmethic. This is
-  faster than `malachite` but depends on GNU GMP via the `gmp-mpfr-sys` crate
-  which makes this crate fall under the GPL license.
+- `malachite` – Use the `malachite` crate as the arbitrary precision integer arithmethic backend.
 
-- `hdf5` — Allow saving Voronoi grids to HDF5 format.
+- `rug` – Use the `rug` crate as the arbitrary precision integer arithmethic backend.
+
+- `hdf5` – Allow saving Voronoi grids to HDF5 format.
+
+## License
+
+Apache-2.0 OR MIT at your option when using the `dashu` backend OR LGPL-3.0-only
+(`malachite` backend) OR LGPL-3.0+ (`rug` backend).

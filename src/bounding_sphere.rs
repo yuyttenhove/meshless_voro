@@ -1,8 +1,6 @@
-use ahash::HashSet;
-
-use glam::DVec3;
-
 use crate::geometry::Sphere;
+use ahash::{HashSet, HashSetExt};
+use glam::DVec3;
 
 pub(crate) trait BoundingSphereSolver {
     fn bounding_sphere(points: &[DVec3]) -> Sphere;
@@ -159,7 +157,7 @@ impl BoundingSphereSolver for Epos6 {
 mod test {
     use glam::DVec3;
 
-    use super::{BoundingSphereSolver, Welzl, EPOS6};
+    use super::{BoundingSphereSolver, Epos6, Welzl};
 
     #[test]
     fn test_bound() {
@@ -221,7 +219,7 @@ mod test {
             assert!(sphere.contains(*point));
         }
 
-        let sphere_approx = EPOS6::bounding_sphere(&points);
+        let sphere_approx = Epos6::bounding_sphere(&points);
         for point in &points {
             assert!(sphere_approx.contains(*point));
         }
@@ -287,7 +285,7 @@ mod test {
             assert!(sphere.contains(*point));
         }
 
-        let sphere_approx = EPOS6::bounding_sphere(&points);
+        let sphere_approx = Epos6::bounding_sphere(&points);
         for point in &points {
             assert!(sphere_approx.contains(*point));
         }

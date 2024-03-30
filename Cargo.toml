@@ -12,26 +12,26 @@ exclude = ["plot_vortess.py", "shell.nix"]
 
 [dependencies]
 ahash = "0.8"
+dashu = { version = "0.4", optional = true }
 document-features = "0.2"
 glam = "0.27"
 hdf5 = { version = "0.8", optional = true }
 malachite-base = { version = "0.4", optional = true }
 malachite-nz = { version = "0.4", optional = true }
+num_enum = { version = "0.7.2", default-features = false }
 rayon = { version = "1", optional = true }
 rstar = "0.12"
 rug = { version = "1.24", optional = true }
 
 [features]
-default = ["malachite", "rayon"]
+default = ["dashu", "rayon"]
 ## Enable parallel construction of the Voronoi grid.
 rayon = ["dep:rayon"]
-## Use the `malachite` crate for arbitrary precision integer arithmethic.
-## This is slower than `rug` but builds considerably faster and allows
-## the crate itself to remain under the MIT/Apache licenses.
+## Use the `dashu` crate as the arbitrary precision integer arithmethic backend.
+dashu = ["dep:dashu"]
+## Use the `malachite` crate as the arbitrary precision integer arithmethic backen.
 malachite = ["malachite-nz", "malachite-base"]
-## Use the `rug` crate for arbitrary precision integer arithmethic. This is
-## faster than `malachite` but depends on GNU GMP via the `gmp-mpfr-sys`
-## crate which makes this crate fall under the GPL license.
+## Use the `rug` crate as arbitrary precision integer arithmethic backend.
 rug = ["dep:rug"]
 ## Allow saving Voronoi grids to
 ## [HDF5 format](https://en.wikipedia.org/wiki/Hierarchical_Data_Format#HDF5).

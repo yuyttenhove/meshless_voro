@@ -95,11 +95,7 @@ impl VoronoiCell {
             }
         }
         // Filter out uninitialized faces and finalize the rest
-        for maybe_face in maybe_faces {
-            if let Some(face) = maybe_face {
-                faces.push(face.build());
-            }
-        }
+        faces.extend(maybe_faces.into_iter().flatten().map(|face| face.build()));
 
         let VolumeCentroidIntegrator {
             volume,

@@ -1,3 +1,6 @@
+use self::integrals::{CellIntegral, CellIntegralWithData, FaceIntegral, FaceIntegralWithData};
+use crate::rtree_nn::{build_rtree, nn_iter, wrapping_nn_iter};
+
 use glam::DVec3;
 #[cfg(feature = "rayon")]
 use rayon::prelude::*;
@@ -6,15 +9,11 @@ use std::error::Error;
 #[cfg(feature = "hdf5")]
 use std::path::Path;
 
-use crate::rtree_nn::{build_rtree, nn_iter, wrapping_nn_iter};
-
 use boundary::SimulationBoundary;
 pub use convex_cell::ConvexCell;
 pub use generator::Generator;
 pub use voronoi_cell::VoronoiCell;
 pub use voronoi_face::VoronoiFace;
-
-use self::integrals::{CellIntegral, CellIntegralWithData, FaceIntegral, FaceIntegralWithData};
 
 mod boundary;
 mod convex_cell;
@@ -26,40 +25,21 @@ pub mod integrals;
 mod voronoi_cell;
 mod voronoi_face;
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) enum Dimensionality {
-    Dimensionality1D,
-    Dimensionality2D,
-    Dimensionality3D,
+/// The dimensionality of the Voronoi tessellation.
+#[derive(Clone, Copy, Debug, PartialEq, num_enum::IntoPrimitive)]
+#[repr(usize)]
+pub enum Dimensionality {
+    OneD = 1,
+    TwoD = 2,
+    ThreeD = 3,
 }
 
 impl Dimensionality {
     pub fn vector_is_valid(&self, v: DVec3) -> bool {
         match self {
-            Self::Dimensionality1D => v.y == 0. && v.z == 0.,
-            Self::Dimensionality2D => v.z == 0.,
-            Self::Dimensionality3D => true,
-        }
-    }
-}
-
-impl From<usize> for Dimensionality {
-    fn from(u: usize) -> Self {
-        match u {
-            1 => Dimensionality::Dimensionality1D,
-            2 => Dimensionality::Dimensionality2D,
-            3 => Dimensionality::Dimensionality3D,
-            _ => panic!("Invalid Voronoi dimensionality!"),
-        }
-    }
-}
-
-impl From<Dimensionality> for usize {
-    fn from(dimensionality: Dimensionality) -> Self {
-        match dimensionality {
-            Dimensionality::Dimensionality1D => 1,
-            Dimensionality::Dimensionality2D => 2,
-            Dimensionality::Dimensionality3D => 3,
+            Self::OneD => v.y == 0. && v.z == 0.,
+            Self::TwoD => v.z == 0.,
+            Self::ThreeD => true,
         }
     }
 }
@@ -125,7 +105,7 @@ impl Voronoi {
         generators: &[DVec3],
         anchor: DVec3,
         width: DVec3,
-        dimensionality: usize,
+        dimensionality: Dimensionality,
         periodic: bool,
     ) -> Self {
         Self::build_internal(generators, None, anchor, width, dimensionality, periodic)
@@ -156,7 +136,7 @@ impl Voronoi {
         mask: &[bool],
         anchor: DVec3,
         width: DVec3,
-        dimensionality: usize,
+        dimensionality: Dimensionality,
         periodic: bool,
     ) -> Self {
         Self::build_internal(generators, Some(mask), anchor, width, dimensionality, periodic)
@@ -167,19 +147,17 @@ impl Voronoi {
         mask: Option<&[bool]>,
         mut anchor: DVec3,
         mut width: DVec3,
-        dimensionality: usize,
+        dimensionality: Dimensionality,
         periodic: bool,
     ) -> Self {
-        let dimensionality = dimensionality.into();
-
         // Normalize the unused components of the simulation volume, so that the lower
         // dimensional volumes will be correct.
-        if let Dimensionality::Dimensionality1D = dimensionality {
+        if let Dimensionality::OneD = dimensionality {
             anchor.y = -0.5;
             width.y = 1.;
-        };
-        if let Dimensionality::Dimensionality1D | Dimensionality::Dimensionality2D = dimensionality
-        {
+        }
+
+        if let Dimensionality::OneD | Dimensionality::TwoD = dimensionality {
             anchor.z = -0.5;
             width.z = 1.;
         }
@@ -347,7 +325,7 @@ impl Voronoi {
                 continue;
             }
             let faces = cell.faces(self);
-            if self.dimensionality == Dimensionality::Dimensionality3D {
+            if self.dimensionality == Dimensionality::ThreeD {
                 let area: f64 = faces.map(|f| f.area()).sum();
                 let radius =
                     (0.25 * 3. * std::f64::consts::FRAC_1_PI * cell.volume()).powf(1. / 3.);
@@ -361,7 +339,7 @@ impl Voronoi {
                 }
             }
         }
-        if all_active && self.dimensionality == Dimensionality::Dimensionality3D {
+        if all_active && self.dimensionality == Dimensionality::ThreeD {
             let box_volume = self.width.x * self.width.y * self.width.z;
             assert_approx_eq!(
                 f64,
@@ -403,7 +381,7 @@ impl Voronoi {
         group.new_dataset_builder().with_data(&data).create("Centroid")?;
         let data = self.faces.iter().map(|f| f.normal().to_array()).collect::<Vec<_>>();
         group.new_dataset_builder().with_data(&data).create("Normal")?;
-        if let Dimensionality::Dimensionality2D = self.dimensionality {
+        if let Dimensionality::TwoD = self.dimensionality {
             // Also write face start and end points
             let face_directions = self
                 .faces
@@ -487,20 +465,17 @@ impl VoronoiIntegrator {
         mask: Option<&[bool]>,
         mut anchor: DVec3,
         mut width: DVec3,
-        dimensionality: usize,
+        dimensionality: Dimensionality,
         periodic: bool,
     ) -> Self {
-        // Some general properties
-        let dimensionality = dimensionality.into();
-
         // Normalize the unused components of the simulation volume, so that the lower
         // dimensional volumes will be correct.
-        if let Dimensionality::Dimensionality1D = dimensionality {
+        if let Dimensionality::OneD = dimensionality {
             anchor.y = -0.5;
             width.y = 1.;
         };
-        if let Dimensionality::Dimensionality1D | Dimensionality::Dimensionality2D = dimensionality
-        {
+
+        if let Dimensionality::OneD | Dimensionality::TwoD = dimensionality {
             anchor.z = -0.5;
             width.z = 1.;
         }
@@ -629,9 +604,6 @@ mod test {
     use float_cmp::assert_approx_eq;
     use rand::{distributions::Uniform, prelude::*};
 
-    const DIM2D: usize = 2;
-    const DIM3D: usize = 3;
-
     fn perturbed_grid(anchor: DVec3, width: DVec3, count: usize, pert: f64) -> Vec<DVec3> {
         let mut generators = vec![];
         let mut rng = thread_rng();
@@ -678,7 +650,7 @@ mod test {
         let generators = vec![DVec3::splat(0.5)];
         let anchor = DVec3::ZERO;
         let width = DVec3::splat(1.);
-        let voronoi = Voronoi::build(&generators, anchor, width, DIM3D, false);
+        let voronoi = Voronoi::build(&generators, anchor, width, Dimensionality::ThreeD, false);
         assert_approx_eq!(f64, voronoi.voronoi_cells[0].volume(), 1.);
     }
 
@@ -698,7 +670,7 @@ mod test {
         ];
         let anchor = DVec3::ZERO;
         let width = DVec3::splat(1.);
-        let voronoi = Voronoi::build(&generators, anchor, width, DIM3D, false);
+        let voronoi = Voronoi::build(&generators, anchor, width, Dimensionality::ThreeD, false);
         assert_approx_eq!(f64, voronoi.voronoi_cells[0].volume(), 0.5);
         assert_approx_eq!(f64, voronoi.voronoi_cells[1].volume(), 0.5);
     }
@@ -733,7 +705,7 @@ mod test {
             y: 1.,
             z: 1.,
         };
-        let voronoi = Voronoi::build(&generators, anchor, width, DIM2D, true);
+        let voronoi = Voronoi::build(&generators, anchor, width, Dimensionality::TwoD, true);
         #[cfg(feature = "hdf5")]
         voronoi.write_to_hdf5("test_4_cells.hdf5").unwrap();
         voronoi.consistency_check();
@@ -771,7 +743,7 @@ mod test {
         ];
         let anchor = DVec3::ZERO;
         let width = DVec3::splat(1.);
-        let voronoi = Voronoi::build(&generators, anchor, width, DIM2D, false);
+        let voronoi = Voronoi::build(&generators, anchor, width, Dimensionality::TwoD, false);
         assert_approx_eq!(f64, voronoi.voronoi_cells[0].volume(), 0.2);
         assert_approx_eq!(f64, voronoi.voronoi_cells[1].volume(), 0.2);
         assert_approx_eq!(f64, voronoi.voronoi_cells[2].volume(), 0.2);
@@ -784,7 +756,7 @@ mod test {
         let anchor = DVec3::ZERO;
         let width = DVec3::splat(1.);
         let generators = perturbed_grid(anchor, width, 2, 0.);
-        let voronoi = Voronoi::build(&generators, anchor, width, DIM3D, false);
+        let voronoi = Voronoi::build(&generators, anchor, width, Dimensionality::ThreeD, false);
         for cell in &voronoi.voronoi_cells {
             assert_approx_eq!(f64, cell.volume(), 0.125);
         }
@@ -795,7 +767,7 @@ mod test {
         let anchor = DVec3::ZERO;
         let width = DVec3::splat(1.);
         let generators = perturbed_grid(anchor, width, 3, 0.);
-        let voronoi = Voronoi::build(&generators, anchor, width, DIM3D, false);
+        let voronoi = Voronoi::build(&generators, anchor, width, Dimensionality::ThreeD, false);
         for cell in &voronoi.voronoi_cells {
             assert_approx_eq!(f64, cell.volume(), 1. / 27.);
         }
@@ -806,7 +778,7 @@ mod test {
         let anchor = DVec3::ZERO;
         let width = DVec3::splat(1.);
         let generators = perturbed_grid(anchor, width, 4, 0.);
-        let voronoi = Voronoi::build(&generators, anchor, width, DIM3D, false);
+        let voronoi = Voronoi::build(&generators, anchor, width, Dimensionality::ThreeD, false);
         for cell in &voronoi.voronoi_cells {
             assert_approx_eq!(f64, cell.volume(), 1. / 64.);
         }
@@ -818,7 +790,7 @@ mod test {
         let anchor = DVec3::ZERO;
         let width = DVec3::splat(1.);
         let generators = perturbed_grid(anchor, width, 5, pert);
-        let voronoi = Voronoi::build(&generators, anchor, width, DIM3D, false);
+        let voronoi = Voronoi::build(&generators, anchor, width, Dimensionality::ThreeD, false);
         voronoi.consistency_check();
     }
 
@@ -828,12 +800,18 @@ mod test {
         let anchor = DVec3::ZERO;
         let width = DVec3::splat(1.);
         let generators = perturbed_grid(anchor, width, 3, pert);
-        let voronoi_all = Voronoi::build(&generators, anchor, width, DIM3D, false);
+        let voronoi_all = Voronoi::build(&generators, anchor, width, Dimensionality::ThreeD, false);
         for i in 0..27 {
             let mut mask = vec![false; 27];
             mask[i] = true;
-            let voronoi_partial =
-                Voronoi::build_partial(&generators, &mask, anchor, width, DIM3D, false);
+            let voronoi_partial = Voronoi::build_partial(
+                &generators,
+                &mask,
+                anchor,
+                width,
+                Dimensionality::ThreeD,
+                false,
+            );
             for j in 0..27 {
                 if j == i {
                     assert_approx_eq!(
@@ -863,7 +841,7 @@ mod test {
             z: 1.,
         };
         let generators = perturbed_plane(anchor, width, count, pert);
-        let voronoi = Voronoi::build(&generators, anchor, width, DIM2D, true);
+        let voronoi = Voronoi::build(&generators, anchor, width, Dimensionality::TwoD, true);
 
         #[cfg(feature = "hdf5")]
         voronoi.write_to_hdf5("test_2_d.hdf5").unwrap();
@@ -884,7 +862,7 @@ mod test {
         let anchor = DVec3::ZERO;
         let width = DVec3::splat(2.);
         let generators = perturbed_grid(anchor, width, count, pert);
-        let voronoi = Voronoi::build(&generators, anchor, width, DIM3D, false);
+        let voronoi = Voronoi::build(&generators, anchor, width, Dimensionality::ThreeD, false);
         assert_eq!(voronoi.voronoi_cells.len(), generators.len());
         voronoi.consistency_check();
     }
@@ -906,15 +884,15 @@ mod test {
             z: 1.,
         };
         let mut plane = vec![];
-        for i in 0..4 {
+        for (i, count) in counts.into_iter().enumerate() {
             plane.extend(perturbed_plane(
                 anchor + i as f64 * anchor_delta,
                 width_part,
-                counts[i],
+                count,
                 pert,
             ));
         }
-        let voronoi = Voronoi::build(&plane, anchor, width, DIM2D, true);
+        let voronoi = Voronoi::build(&plane, anchor, width, Dimensionality::TwoD, true);
         #[cfg(feature = "hdf5")]
         voronoi.write_to_hdf5("test_density_grad_2_d.hdf5").unwrap();
 
@@ -928,7 +906,7 @@ mod test {
         let width = DVec3::splat(2e15);
         let mut generators = perturbed_grid(anchor, width, 10, 0.);
         generators[42] = 1e14 * DVec3::new(1.00007490802, 9.00019014286, 5.00014639879);
-        let voronoi = Voronoi::build(&generators, anchor, width, 3, false);
+        let voronoi = Voronoi::build(&generators, anchor, width, Dimensionality::ThreeD, false);
         voronoi.consistency_check();
     }
 
@@ -940,7 +918,14 @@ mod test {
         generators[4] = 1e14 * DVec3::new(1.00007490802, 9.00019014286, 5.00014639879);
         let mut mask = [false; 27];
         mask[3] = true;
-        let voronoi = Voronoi::build_partial(&generators, &mask, anchor, width, 3, false);
+        let voronoi = Voronoi::build_partial(
+            &generators,
+            &mask,
+            anchor,
+            width,
+            Dimensionality::ThreeD,
+            false,
+        );
         voronoi.consistency_check();
     }
 
@@ -954,8 +939,16 @@ mod test {
 
         let mut mask = vec![false; 125];
         mask[62] = true;
-        let voronoi = Voronoi::build_partial(&generators, &mask, anchor, width, 3, true);
-        let integrator = VoronoiIntegrator::build(&generators, Some(&mask), anchor, width, 3, true);
+        let voronoi =
+            Voronoi::build_partial(&generators, &mask, anchor, width, Dimensionality::ThreeD, true);
+        let integrator = VoronoiIntegrator::build(
+            &generators,
+            Some(&mask),
+            anchor,
+            width,
+            Dimensionality::ThreeD,
+            true,
+        );
 
         let area_centroids = integrator.compute_face_integrals::<AreaCentroidIntegrator>();
         let volume_centroids = integrator.compute_cell_integrals::<VolumeCentroidIntegrator>();
