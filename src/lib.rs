@@ -40,16 +40,16 @@
 //!
 //! # Integer Arithmetic Backend
 //!
-//! The default backend for arbitrary precision integer arithemtic is 
+//! The default backend for arbitrary precision integer arithemtic is
 //! [`num_bigint`](https://crates.io/crates/num-bigint) (MIT/Apache 2.0).
-//! For most use cases there is no significant performance difference between the different 
+//! For most use cases there is no significant performance difference between the different
 //! backends and `num_bigint` is the fastest to build.
-//! 
-//! However, for highly degenerate seed configurations, it is recommended to use the alternative 
-//! [`rug`](https://crates.io/crates/rug) (LGPL-3.0+) backend, which can increase performance 
+//!
+//! However, for highly degenerate seed configurations, it is recommended to use the alternative
+//! [`rug`](https://crates.io/crates/rug) (LGPL-3.0+) backend, which can increase performance
 //! up to 2x in these cases.
 //! It should be noted that this backend requires a C compiler to build and hence has the slowest build time.
-//! 
+//!
 //! *Using the `rug` backend also changes the license of the crate to LGPL-3.0+.*
 //!
 //! # Cargo Features

@@ -105,7 +105,7 @@ impl Sphere {
         Self { center, radius }
     }
 
-    /// Create the smallest sphere through 2, 3 or 4 boundary points. 
+    /// Create the smallest sphere through 2, 3 or 4 boundary points.
     /// When 0 or 1 points are given, an empty sphere is returned.
     pub fn from_boundary_points(points: &[DVec3]) -> Self {
         match points.len() {
