@@ -20,10 +20,11 @@ pub struct VoronoiCell {
     safety_radius: f64,
     face_connections_offset: usize,
     face_count: usize,
+    idx: usize,
 }
 
 impl VoronoiCell {
-    fn init(loc: DVec3, centroid: DVec3, volume: f64, safety_radius: f64) -> Self {
+    fn init(loc: DVec3, centroid: DVec3, volume: f64, safety_radius: f64, idx: usize) -> Self {
         Self {
             loc,
             centroid,
@@ -31,6 +32,7 @@ impl VoronoiCell {
             safety_radius,
             face_connections_offset: 0,
             face_count: 0,
+            idx,
         }
     }
 
@@ -102,7 +104,13 @@ impl VoronoiCell {
 
         let VolumeCentroidIntegrator { volume, centroid } = volume_centroid_integral.finalize();
 
-        VoronoiCell::init(loc, centroid, volume, convex_cell.safety_radius)
+        VoronoiCell::init(
+            loc,
+            centroid,
+            volume,
+            convex_cell.safety_radius,
+            convex_cell.idx,
+        )
     }
 
     pub(super) fn finalize(&mut self, face_connections_offset: usize, face_count: usize) {
@@ -141,6 +149,22 @@ impl VoronoiCell {
         self.face_indices(voronoi)
             .iter()
             .map(|&i| &voronoi.faces[i])
+    }
+
+    /// Get an `Iterator` over the indices of the neighbouring generators of this Voronoi cell.
+    pub fn neighbour_ids<'a>(&'a self, voronoi: &'a Voronoi) -> impl Iterator<Item = usize> + 'a {
+        self.face_indices(voronoi).iter().filter_map(|&i| {
+            let face = &voronoi.faces[i];
+            if face.is_periodic() || face.is_boundary() {
+                return None;
+            }
+            Some(if face.left() == self.idx {
+                face.right()
+                    .expect("Face is guaranteed to not be a boundary face by now")
+            } else {
+                face.left()
+            })
+        })
     }
 
     /// Get the offset of the slice of the indices of this cell's faces in the `Voronoi::cell_face_connections` array.

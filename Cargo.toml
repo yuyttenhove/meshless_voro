@@ -5,17 +5,17 @@ version = "0.5.9"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/yuyttenhove/meshless_voro"
-keywords = ["voronoi","graphics","diagram"]
-categories = ["graphics","science", "mathematics"]
+keywords = ["voronoi", "graphics", "diagram"]
+categories = ["graphics", "science", "mathematics"]
 exclude = ["plot_vortess.py", "shell.nix"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-glam = { version="0.23" }
+glam = { version = "0.23" }
 rstar = "0.10"
 rayon = { version = "1.7", optional = true }
-hdf5 = { version = "0.8", optional = true }
+hdf5 = { git = "https://github.com/aldanor/hdf5-rust.git", version = "0.8", optional = true }
 rug = "1.19.1"
 
 [features]
