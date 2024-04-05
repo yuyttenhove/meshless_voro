@@ -61,7 +61,11 @@ It should be noted that this backend requires a C compiler to build and hence ha
 - `rayon` (enabled by default) – Enable parallel construction of the Voronoi
   grid.
 
-- `rug` – Use the `rug` crate as the arbitrary precision integer arithmethic backend.
+- `rug` – Use the `rug` crate as the arbitrary precision integer arithmethic backend instead of the default `big_int`. 
+  This can increase performance significantly for highly degenerate seed configurations where lots of arbitrary 
+  precision arithmetic is needed. 
+  
+  *Disclaimer:* this changes the license to the more restrictive LGPL-3.0+ license..
 
 - `hdf5` – Allow saving Voronoi grids to HDF5 format.
 
