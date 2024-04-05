@@ -32,6 +32,7 @@ rayon = ["dep:rayon"]
 dashu = ["dep:dashu"]
 ## Use the `malachite` crate as the arbitrary precision integer arithmethic backend.
 malachite = ["malachite-nz", "malachite-base"]
+## Use the `num-bigint` crate as the arbitrary precision integer arithmethic backend.
 num_bigint = ["dep:num-bigint"]
 ## Use the `rug` crate as arbitrary precision integer arithmethic backend.
 rug = ["dep:rug"]
