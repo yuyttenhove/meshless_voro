@@ -32,10 +32,10 @@ rayon = ["dep:rayon"]
 dashu = ["dep:dashu"]
 ## Use the `malachite` crate as the arbitrary precision integer arithmethic backend.
 malachite = ["malachite-nz", "malachite-base"]
-## Use the `num-bigint` crate as the arbitrary precision integer arithmethic backend.
+## Use the `num_bigint` crate as the arbitrary precision integer arithmethic backend.
 num_bigint = ["dep:num-bigint"]
 ## Use the `rug` crate as arbitrary precision integer arithmethic backend. 
-## *Warning* this changes the license to the more restrictive LGPL-3.0+ license.
+## *Warning:* this changes the license to the more restrictive LGPL-3.0+ license.
 rug = ["dep:rug"]
 ## Allow saving Voronoi grids to
 ## [HDF5 format](https://en.wikipedia.org/wiki/Hierarchical_Data_Format#HDF5).
