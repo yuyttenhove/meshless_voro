@@ -55,17 +55,6 @@
 //! # Cargo Features
 #![doc = document_features::document_features!()]
 
-#[cfg(any(
-    all(feature = "rug", feature = "malachite"),
-    all(feature = "rug", feature = "malachite-base"),
-    all(feature = "rug", feature = "malachite-nz"),
-    all(feature = "dashu", feature = "malachite"),
-    all(feature = "dashu", feature = "malachite-base"),
-    all(feature = "dashu", feature = "malachite-nz"),
-    all(feature = "rug", feature = "dashu"),
-))]
-compile_error!("Illegal feature combination selected");
-
 mod bounding_sphere;
 pub mod geometry;
 mod part;
