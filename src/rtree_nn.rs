@@ -193,8 +193,7 @@ where
     T: WrappingPointDistance,
 {
     fn partial_cmp(&self, other: &Self) -> Option<::core::cmp::Ordering> {
-        // Inverse comparison creates a min heap
-        other.distance.partial_cmp(&self.distance)
+        Some(self.cmp(other))
     }
 }
 
@@ -205,7 +204,8 @@ where
     T: WrappingPointDistance,
 {
     fn cmp(&self, other: &Self) -> ::core::cmp::Ordering {
-        self.partial_cmp(other).unwrap()
+        // Inverse comparison creates a min heap
+        other.distance.partial_cmp(&self.distance).expect("Distances to RTree nodes must be finite")
     }
 }
 
