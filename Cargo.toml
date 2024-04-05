@@ -25,7 +25,7 @@ rstar = "0.12"
 rug = { version = "1.24", optional = true }
 
 [features]
-default = ["dashu", "rayon"]
+default = ["num_bigint", "rayon"]
 ## Enable parallel construction of the Voronoi grid.
 rayon = ["dep:rayon"]
 ## Use the `dashu` crate as the arbitrary precision integer arithmethic backend.
@@ -34,7 +34,8 @@ dashu = ["dep:dashu"]
 malachite = ["malachite-nz", "malachite-base"]
 ## Use the `num-bigint` crate as the arbitrary precision integer arithmethic backend.
 num_bigint = ["dep:num-bigint"]
-## Use the `rug` crate as arbitrary precision integer arithmethic backend.
+## Use the `rug` crate as arbitrary precision integer arithmethic backend. 
+## *Warning* this changes the license to the more restrictive LGPL-3.0+ license.
 rug = ["dep:rug"]
 ## Allow saving Voronoi grids to
 ## [HDF5 format](https://en.wikipedia.org/wiki/Hierarchical_Data_Format#HDF5).
