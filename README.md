@@ -65,7 +65,7 @@ It should be noted that this backend requires a C compiler to build and hence ha
   This can increase performance significantly for highly degenerate seed configurations where lots of arbitrary 
   precision arithmetic is needed. 
   
-  *Disclaimer:* this changes the license to the more restrictive LGPL-3.0+ license..
+  *Disclaimer:* this changes the license to the more restrictive LGPL-3.0+ license.
 
 - `hdf5` – Allow saving Voronoi grids to HDF5 format.
 
