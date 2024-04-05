@@ -18,6 +18,7 @@ glam = "0.27"
 hdf5 = { version = "0.8", optional = true }
 malachite-base = { version = "0.4", optional = true }
 malachite-nz = { version = "0.4", optional = true }
+num-bigint = { version = "0.4", optional = true }
 num_enum = { version = "0.7.2", default-features = false }
 rayon = { version = "1", optional = true }
 rstar = "0.12"
@@ -29,8 +30,9 @@ default = ["dashu", "rayon"]
 rayon = ["dep:rayon"]
 ## Use the `dashu` crate as the arbitrary precision integer arithmethic backend.
 dashu = ["dep:dashu"]
-## Use the `malachite` crate as the arbitrary precision integer arithmethic backen.
+## Use the `malachite` crate as the arbitrary precision integer arithmethic backend.
 malachite = ["malachite-nz", "malachite-base"]
+num_bigint = ["dep:num-bigint"]
 ## Use the `rug` crate as arbitrary precision integer arithmethic backend.
 rug = ["dep:rug"]
 ## Allow saving Voronoi grids to

@@ -8,8 +8,12 @@ use glam::{DMat3, DMat4, DVec3, DVec4};
 use malachite_base::num::arithmetic::traits::Sign;
 #[cfg(feature = "malachite")]
 use malachite_nz::integer::Integer;
+#[cfg(feature = "malachite")]
+use std::cmp::Ordering;
 #[cfg(feature = "rug")]
 use rug::Integer;
+#[cfg(feature = "num_bigint")]
+use num_bigint::{BigInt as Integer, Sign};
 
 /// A simple plane struct.
 #[derive(Clone, Debug)]
@@ -227,8 +231,8 @@ macro_rules! big_int {
     ($a:expr, $b:expr) => {{
         let mut big_int_diff = [
             Integer::from($a[0] - $b[0]),
-            Integer::from($a[0] - $b[1]),
-            Integer::from($a[0] - $b[2]),
+            Integer::from($a[1] - $b[1]),
+            Integer::from($a[2] - $b[2]),
             Integer::default(),
         ];
         let mut norm2 = Integer::default();
@@ -296,6 +300,12 @@ pub(crate) fn in_sphere_test_exact(a: &[i64], b: &[i64], c: &[i64], d: &[i64], v
         Ordering::Less => -1.0,
         Ordering::Equal => 0.0,
         Ordering::Greater => 1.0,
+    };
+    #[cfg(feature = "num_bigint")]
+    let result = match determinant.sign() {
+        Sign::Minus => -1.0,
+        Sign::NoSign => 0.0,
+        Sign::Plus => 1.0,
     };
 
     result

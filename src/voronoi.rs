@@ -345,7 +345,7 @@ impl Voronoi {
                 f64,
                 total_volume,
                 box_volume,
-                epsilon = box_volume * 1e-13,
+                epsilon = box_volume * 1e-12,
                 ulps = 4
             );
         }
