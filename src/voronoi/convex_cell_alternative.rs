@@ -15,15 +15,15 @@ pub(super) struct DualVertex {
 
 impl DualVertex {
     fn new(
-        _0: usize,
-        _1: usize,
-        _2: usize,
+        n_0: usize,
+        n_1: usize,
+        n_2: usize,
         loc: DVec3,
         neighbours: &[Neighbour],
         dimensionality: Dimensionality,
     ) -> Self {
         let mut circumcenter =
-            intersect_planes(&neighbours[_0].plane, &neighbours[_1].plane, &neighbours[_2].plane);
+            intersect_planes(&neighbours[n_0].plane, &neighbours[n_1].plane, &neighbours[n_2].plane);
         match dimensionality {
             Dimensionality::OneD => {
                 circumcenter.y = 0.;
@@ -33,7 +33,7 @@ impl DualVertex {
             Dimensionality::ThreeD => (),
         }
         Self {
-            repr: (_0, _1, _2),
+            repr: (n_0, n_1, n_2),
             circumradius2: (loc - circumcenter).length_squared(),
         }
     }
