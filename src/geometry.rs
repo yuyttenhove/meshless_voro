@@ -8,12 +8,12 @@ use glam::{DMat3, DMat4, DVec3, DVec4};
 use malachite_base::num::arithmetic::traits::Sign;
 #[cfg(feature = "malachite")]
 use malachite_nz::integer::Integer;
-#[cfg(feature = "malachite")]
-use std::cmp::Ordering;
-#[cfg(feature = "rug")]
-use rug::Integer;
 #[cfg(feature = "num_bigint")]
 use num_bigint::{BigInt as Integer, Sign};
+#[cfg(feature = "rug")]
+use rug::Integer;
+#[cfg(feature = "malachite")]
+use std::cmp::Ordering;
 
 /// A simple plane struct.
 #[derive(Clone, Debug)]
@@ -25,10 +25,7 @@ pub struct Plane {
 impl Plane {
     /// Create a plane from a normal vector and a point on the plane.
     pub fn new(n: DVec3, p: DVec3) -> Self {
-        Self {
-            n,
-            p,
-        }
+        Self { n, p }
     }
 
     /// Project a point onto plane.
@@ -111,10 +108,7 @@ impl Sphere {
     };
 
     pub fn new(center: DVec3, radius: f64) -> Self {
-        Self {
-            center,
-            radius,
-        }
+        Self { center, radius }
     }
 
     pub fn from_boundary_points(points: &[DVec3]) -> Self {

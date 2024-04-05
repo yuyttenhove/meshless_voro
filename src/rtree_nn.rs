@@ -205,7 +205,10 @@ where
 {
     fn cmp(&self, other: &Self) -> ::core::cmp::Ordering {
         // Inverse comparison creates a min heap
-        other.distance.partial_cmp(&self.distance).expect("Distances to RTree nodes must be finite")
+        other
+            .distance
+            .partial_cmp(&self.distance)
+            .expect("Distances to RTree nodes must be finite")
     }
 }
 

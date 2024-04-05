@@ -27,10 +27,7 @@ impl<'a> VoronoiFaceBuilder<'a> {
     }
 
     pub fn build(self) -> VoronoiFace {
-        let AreaCentroidIntegrator {
-            area,
-            centroid,
-        } = self.area_centroid.finalize();
+        let AreaCentroidIntegrator { area, centroid } = self.area_centroid.finalize();
         VoronoiFace::new(
             self.left_idx,
             self.half_space.right_idx,

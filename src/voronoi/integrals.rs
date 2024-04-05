@@ -191,9 +191,7 @@ pub struct AreaIntegral {
 
 impl CellIntegral for AreaIntegral {
     fn init(_cell: &ConvexCell) -> Self {
-        Self {
-            area: 0.,
-        }
+        Self { area: 0. }
     }
 
     fn collect(&mut self, v0: DVec3, v1: DVec3, v2: DVec3, gen: DVec3) {

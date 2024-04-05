@@ -57,21 +57,20 @@ impl VoronoiCell {
         let maybe_init_face = |maybe_face: &mut Option<VoronoiFaceBuilder<'a>>,
                                half_space: &'a HalfSpace| {
             // Only construct faces for clipping planes of valid dimensionality.
-            let should_construct_face = convex_cell
-                .dimensionality
-                .vector_is_valid(half_space.normal())
-                && match half_space {
-                    // Don't construct internal (non-boundary) faces twice.
-                    HalfSpace {
-                        right_idx: Some(right_idx),
-                        shift: None,
-                        ..
-                    } => {
-                        // Only construct face if: neighbour has not been treated yet or is inactive
-                        *right_idx > idx || mask.map_or(false, |mask| !mask[*right_idx])
-                    }
-                    _ => true,
-                };
+            let should_construct_face =
+                convex_cell.dimensionality.vector_is_valid(half_space.normal())
+                    && match half_space {
+                        // Don't construct internal (non-boundary) faces twice.
+                        HalfSpace {
+                            right_idx: Some(right_idx),
+                            shift: None,
+                            ..
+                        } => {
+                            // Only construct face if: neighbour has not been treated yet or is inactive
+                            *right_idx > idx || mask.map_or(false, |mask| !mask[*right_idx])
+                        }
+                        _ => true,
+                    };
             if should_construct_face {
                 maybe_face.get_or_insert(VoronoiFaceBuilder::new(idx, loc, half_space));
             }
@@ -99,18 +98,9 @@ impl VoronoiCell {
         // Filter out uninitialized faces and finalize the rest
         faces.extend(maybe_faces.into_iter().flatten().map(|face| face.build()));
 
-        let VolumeCentroidIntegrator {
-            volume,
-            centroid,
-        } = volume_centroid_integral.finalize();
+        let VolumeCentroidIntegrator { volume, centroid } = volume_centroid_integral.finalize();
 
-        VoronoiCell::init(
-            loc,
-            centroid,
-            volume,
-            convex_cell.safety_radius,
-            convex_cell.idx,
-        )
+        VoronoiCell::init(loc, centroid, volume, convex_cell.safety_radius, convex_cell.idx)
     }
 
     pub(super) fn finalize(&mut self, face_connections_offset: usize, face_count: usize) {
@@ -159,8 +149,7 @@ impl VoronoiCell {
                 return None;
             }
             Some(if face.left() == self.idx {
-                face.right()
-                    .expect("Face is guaranteed to not be a boundary face by now")
+                face.right().expect("Face is guaranteed to not be a boundary face by now")
             } else {
                 face.left()
             })

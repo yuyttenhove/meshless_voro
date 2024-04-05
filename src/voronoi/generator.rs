@@ -20,10 +20,7 @@ impl Generator {
             Dimensionality::TwoD => loc.z = 0.,
             _ => (),
         }
-        Self {
-            loc,
-            id,
-        }
+        Self { loc, id }
     }
 
     /// Get the id of this generator

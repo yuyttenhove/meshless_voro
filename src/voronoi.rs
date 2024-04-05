@@ -48,7 +48,9 @@ impl Dimensionality {
 #[allow(unused)]
 macro_rules! unravel {
     ($array:expr, $n:expr) => {
-        (0..$n).map(|i| $array.iter().take(i).step_by($n).map(|v| *v).collect()).collect()
+        (0..$n)
+            .map(|i| $array.iter().take(i).step_by($n).map(|v| *v).collect())
+            .collect()
     };
 }
 
@@ -60,7 +62,10 @@ macro_rules! flatten {
 
 macro_rules! cells_map {
     ($cells:expr, $mappable:expr) => {
-        $cells.iter().filter_map(|maybe_cell| maybe_cell.as_ref().map($mappable)).collect()
+        $cells
+            .iter()
+            .filter_map(|maybe_cell| maybe_cell.as_ref().map($mappable))
+            .collect()
     };
 }
 
@@ -363,8 +368,11 @@ impl Voronoi {
         let group = file.create_group("Cells")?;
         let data = self.voronoi_cells.iter().map(|c| c.volume()).collect::<Vec<_>>();
         group.new_dataset_builder().with_data(&data).create("Volume")?;
-        let data =
-            self.voronoi_cells.iter().map(|c| c.face_connections_offset()).collect::<Vec<_>>();
+        let data = self
+            .voronoi_cells
+            .iter()
+            .map(|c| c.face_connections_offset())
+            .collect::<Vec<_>>();
         group.new_dataset_builder().with_data(&data).create("FaceConnectionsOffset")?;
         let data = self.voronoi_cells.iter().map(|c| c.face_count()).collect::<Vec<_>>();
         group.new_dataset_builder().with_data(&data).create("FaceCount")?;
@@ -954,14 +962,7 @@ mod test {
         let volume_centroids = integrator.compute_cell_integrals::<VolumeCentroidIntegrator>();
 
         assert_eq!(area_centroids.len(), 1);
-        for (
-            i,
-            AreaCentroidIntegrator {
-                area,
-                centroid,
-            },
-        ) in area_centroids[0].iter().enumerate()
-        {
+        for (i, AreaCentroidIntegrator { area, centroid }) in area_centroids[0].iter().enumerate() {
             assert_eq!(*area, voronoi.faces()[i].area());
             assert_eq!(*centroid, voronoi.faces()[i].centroid());
         }

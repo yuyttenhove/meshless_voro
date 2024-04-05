@@ -8,11 +8,7 @@ pub struct Part {
 
 impl Part {
     pub fn new(x: DVec3, cid: usize, pid: usize) -> Self {
-        Self {
-            x,
-            cid,
-            id: pid,
-        }
+        Self { x, cid, id: pid }
     }
 
     pub fn cid(&self) -> usize {

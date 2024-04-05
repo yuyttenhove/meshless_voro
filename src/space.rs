@@ -152,7 +152,9 @@ impl Space {
 
         impl Ord for HeapEntry {
             fn cmp(&self, other: &Self) -> Ordering {
-                self.d_2.partial_cmp(&other.d_2).expect("HeapEntries must have finite distances")
+                self.d_2
+                    .partial_cmp(&other.d_2)
+                    .expect("HeapEntries must have finite distances")
             }
         }
 

@@ -22,8 +22,11 @@ impl DualVertex {
         neighbours: &[Neighbour],
         dimensionality: Dimensionality,
     ) -> Self {
-        let mut circumcenter =
-            intersect_planes(&neighbours[n_0].plane, &neighbours[n_1].plane, &neighbours[n_2].plane);
+        let mut circumcenter = intersect_planes(
+            &neighbours[n_0].plane,
+            &neighbours[n_1].plane,
+            &neighbours[n_2].plane,
+        );
         match dimensionality {
             Dimensionality::OneD => {
                 circumcenter.y = 0.;
