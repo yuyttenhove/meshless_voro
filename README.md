@@ -61,10 +61,6 @@ It should be noted that this backend requires a C compiler to build and hence ha
 - `rayon` (enabled by default) – Enable parallel construction of the Voronoi
   grid.
 
-- `dashu` – Use the `dashu` crate as the arbitrary precision integer arithmethic backend.
-
-- `malachite` – Use the `malachite` crate as the arbitrary precision integer arithmethic backend.
-
 - `rug` – Use the `rug` crate as the arbitrary precision integer arithmethic backend.
 
 - `hdf5` – Allow saving Voronoi grids to HDF5 format.
