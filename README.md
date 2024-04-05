@@ -71,5 +71,4 @@ It should be noted that this backend requires a C compiler to build and hence ha
 
 ## License
 
-Apache-2.0 OR MIT at your option when using the `dashu` backend OR LGPL-3.0-only
-(`malachite` backend) OR LGPL-3.0+ (`rug` backend).
+Apache-2.0 OR MIT at your option when using the default (`num_bigint`) backend OR LGPL-3.0+ (`rug` backend).
