@@ -113,4 +113,14 @@ impl VoronoiFace {
     pub fn shift(&self) -> Option<DVec3> {
         self.shift
     }
+
+    /// Whether this is a face between a particle and a periodic boundary neighbour
+    pub fn is_periodic(&self) -> bool {
+        self.shift.is_none()
+    }
+
+    /// Whether this is a boundary face
+    pub fn is_boundary(&self) -> bool {
+        self.right.is_none()
+    }
 }
