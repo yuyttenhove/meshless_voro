@@ -81,6 +81,3 @@ mod util;
 mod voronoi;
 
 pub use voronoi::{integrals, ConvexCell, Voronoi, VoronoiCell, VoronoiFace, VoronoiIntegrator};
-
-// pub use voronoi::integrals::{AreaIntegral, CellIntegral, FaceIntegral,
-// VolumeIntegral};
