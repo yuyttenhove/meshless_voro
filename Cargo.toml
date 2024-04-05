@@ -12,30 +12,23 @@ exclude = ["plot_vortess.py", "shell.nix"]
 
 [dependencies]
 ahash = "0.8"
-dashu = { version = "0.4", optional = true }
 document-features = "0.2"
 glam = "0.27"
 hdf5 = { version = "0.8", optional = true }
-malachite-base = { version = "0.4", optional = true }
-malachite-nz = { version = "0.4", optional = true }
-num-bigint = { version = "0.4", optional = true }
+num-bigint = { version = "0.4" }
 num_enum = { version = "0.7.2", default-features = false }
 rayon = { version = "1", optional = true }
 rstar = "0.12"
 rug = { version = "1.24", optional = true }
 
 [features]
-default = ["num_bigint", "rayon"]
+default = ["rayon"]
 ## Enable parallel construction of the Voronoi grid.
 rayon = ["dep:rayon"]
-## Use the `dashu` crate as the arbitrary precision integer arithmethic backend.
-dashu = ["dep:dashu"]
-## Use the `malachite` crate as the arbitrary precision integer arithmethic backend.
-malachite = ["malachite-nz", "malachite-base"]
-## Use the `num_bigint` crate as the arbitrary precision integer arithmethic backend.
-num_bigint = ["dep:num-bigint"]
-## Use the `rug` crate as arbitrary precision integer arithmethic backend. 
-## *Warning:* this changes the license to the more restrictive LGPL-3.0+ license.
+## Use the `rug` crate as arbitrary precision integer arithmethic backend instead of 
+## the default `big_int`. This can increase performance significantly for highly degenerate 
+## seed configurations where lots of arbitrary precision arithmetic is needed. 
+## *Disclaimer:* this changes the license to the more restrictive LGPL-3.0+ license.
 rug = ["dep:rug"]
 ## Allow saving Voronoi grids to
 ## [HDF5 format](https://en.wikipedia.org/wiki/Hierarchical_Data_Format#HDF5).
