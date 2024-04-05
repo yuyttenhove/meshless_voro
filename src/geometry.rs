@@ -87,6 +87,7 @@ pub fn signed_area_tri(v0: DVec3, v1: DVec3, v2: DVec3, t: DVec3) -> f64 {
     n.length() * sign
 }
 
+/// A simple sphere struct.
 #[derive(Clone)]
 pub struct Sphere {
     pub center: DVec3,
@@ -94,6 +95,7 @@ pub struct Sphere {
 }
 
 impl Sphere {
+    /// Zero sized sphere at the origin.
     pub const EMPTY: Sphere = Sphere {
         center: DVec3::ZERO,
         radius: 0.,
@@ -103,6 +105,8 @@ impl Sphere {
         Self { center, radius }
     }
 
+    /// Create the smallest sphere through 2, 3 or 4 boundary points. 
+    /// When 0 or 1 points are given, an empty sphere is returned.
     pub fn from_boundary_points(points: &[DVec3]) -> Self {
         match points.len() {
             0 | 1 => Self::EMPTY,
@@ -117,13 +121,13 @@ impl Sphere {
     }
 
     /// Create a sphere through two given points with center the midpoint
-    /// between the two points
+    /// between the two points.
     pub fn from_two_points(a: DVec3, b: DVec3) -> Self {
         Self::new(0.5 * (a + b), 0.5 * a.distance(b))
     }
 
     /// Circumscribes sphere through three given points with center on the plane
-    /// spanned by the points
+    /// spanned by the points. I.e. the smallest sphere trough the three points.
     ///
     /// See <https://www.wikiwand.com/en/Circumscribed_circle#Higher_dimensions>.
     pub fn from_three_points(a: DVec3, b: DVec3, c: DVec3) -> Sphere {
