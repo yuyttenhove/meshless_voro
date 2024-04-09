@@ -51,10 +51,11 @@ performance. However, for highly degenerate seed configurations - i.e. with many
 than 4 (almost) co-spherical seed points - many arbitrary precision arithmetic tests must be
 performed leading to some performance differences in such cases.
 
-- [`dashu`](https://crates.io/crates/dashu) (MIT/Apache 2.0): This is the default backend.
-  Can be up to 40% slower than the `rug` backend for highly degenerate seed configurations.
+- [`ibig`](https://crates.io/crates/ibig) (MIT/Apache 2.0): This is the default backend.
+  It generally has good performance, but can be up to 40% slower than the `rug` backend for
+  highly degenerate seed configurations.
 
-- [`ibig`](https://crates.io/crates/ibig) (MIT/Apache 2.0): Similar performance to the `dashu`
+- [`dashu`](https://crates.io/crates/dashu) (MIT/Apache 2.0): Similar performance to the `ibig`
   backend.
 
 - [`num_bigint`](https://crates.io/crates/num-bigint) (MIT/Apache 2.0): Worst performance for
@@ -75,9 +76,9 @@ performed leading to some performance differences in such cases.
 
 - `hdf5` – Allow saving Voronoi grids to [HDF5 format](https://en.wikipedia.org/wiki/Hierarchical_Data_Format#HDF5).
 
-- `dashu` (enabled by default) — Use the `dashu` crate as the arbitrary precision integer arithmetic backend.
+- `dashu` — Use the `dashu` crate as the arbitrary precision integer arithmetic backend.
 
-- `ibig` — Use the `ibig` crate as the arbitrary precision integer arithmetic backend.
+- `ibig` (enabled by default) — Use the `ibig` crate as the arbitrary precision integer arithmetic backend.
 
 - `malachite` — Use the `malachite` crate as the arbitrary precision integer arithmetic backend. 
    

@@ -48,10 +48,11 @@
 //! than 4 (almost) co-spherical seed points - many arbitrary precision arithmetic tests must be
 //! performed leading to some performance differences in such cases.
 //!
-//! - [`dashu`](https://crates.io/crates/dashu) (MIT/Apache 2.0): This is the default backend.
-//!   Can be up to 40% slower than the `rug` backend for highly degenerate seed configurations.
+//! - [`ibig`](https://crates.io/crates/ibig) (MIT/Apache 2.0): This is the default backend.
+//!   It generally has good performance, but can be up to 40% slower than the `rug` backend for
+//!   highly degenerate seed configurations.
 //!
-//! - [`ibig`](https://crates.io/crates/ibig) (MIT/Apache 2.0): Similar performance to the `dashu`
+//! - [`dashu`](https://crates.io/crates/dashu) (MIT/Apache 2.0): Similar performance to the `ibig`
 //!   backend.
 //!
 //! - [`num_bigint`](https://crates.io/crates/num-bigint) (MIT/Apache 2.0): Worst performance for
