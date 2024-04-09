@@ -40,20 +40,33 @@
 //!
 //! # Integer Arithmetic Backend
 //!
-//! The default backend for arbitrary precision integer arithemtic is
-//! [`num_bigint`](https://crates.io/crates/num-bigint) (MIT/Apache 2.0).
-//! For most use cases there is no significant performance difference between the different
-//! backends and `num_bigint` is the fastest to build.
+//! You can select from three backends for arbitrary precision integer
+//! arithmetic.
 //!
-//! However, for highly degenerate seed configurations, it is recommended to use the alternative
-//! [`rug`](https://crates.io/crates/rug) (LGPL-3.0+) backend, which can increase performance
-//! up to 2x in these cases.
-//! It should be noted that this backend requires a C compiler to build and hence has the slowest build time.
+//! - [`dashu`](https://crates.io/crates/dashu) (MIT/Apache 2.0) runs the test
+//!   suit at the same speed as `rug`. This is the default backend.
 //!
-//! *Using the `rug` backend also changes the license of the crate to LGPL-3.0+.*
+//! - [`malachite`](https://crates.io/crates/malachite) (LGPL-3.0-only) runs the
+//!   test suite about 6% slower than `rug` but builds considerably faster.
+//!
+//! - [`rug`](https://crates.io/crates/rug) (LGPL-3.0+) runs the test suite
+//!   faster than `malachite` but depends on GNU GMP via the `gmp-mpfr-sys`
+//!   crate which requires a C compiler to build and has the slowest build time
+//!   thus.
 //!
 //! # Cargo Features
 #![doc = document_features::document_features!()]
+
+#[cfg(any(
+    all(feature = "rug", feature = "malachite"),
+    all(feature = "rug", feature = "malachite-base"),
+    all(feature = "rug", feature = "malachite-nz"),
+    all(feature = "dashu", feature = "malachite"),
+    all(feature = "dashu", feature = "malachite-base"),
+    all(feature = "dashu", feature = "malachite-nz"),
+    all(feature = "rug", feature = "dashu"),
+))]
+compile_error!("Illegal feature combination selected");
 
 mod bounding_sphere;
 pub mod geometry;

@@ -1,11 +1,19 @@
 //! A few general-purpose geometry functions and structs,
 //! which might also be useful for users of this library.
 
+#[cfg(feature = "dashu")]
+use dashu::Integer;
 use glam::{DMat3, DMat4, DVec3, DVec4};
-#[cfg(not(feature = "rug"))]
+#[cfg(feature = "malachite")]
+use malachite_base::num::arithmetic::traits::Sign;
+#[cfg(feature = "malachite")]
+use malachite_nz::integer::Integer;
+#[cfg(feature = "num_bigint")]
 use num_bigint::{BigInt as Integer, Sign};
 #[cfg(feature = "rug")]
 use rug::Integer;
+#[cfg(feature = "malachite")]
+use std::cmp::Ordering;
 
 /// A simple plane struct.
 #[derive(Clone, Debug)]
@@ -281,9 +289,17 @@ pub(crate) fn in_sphere_test_exact(a: &[i64], b: &[i64], c: &[i64], d: &[i64], v
     big_int_det3x3!(b[0], b[1], b[2], c[0], c[1], c[2], d[0], d[1], d[2], tmp1, det);
     determinant -= &v[3] * &det;
 
-    #[cfg(feature = "rug")]
+    #[cfg(any(feature = "dashu", feature = "rug"))]
     let result = determinant.signum().to_f64();
-    #[cfg(not(feature = "rug"))]
+    #[cfg(feature = "dashu")]
+    let result = result.value();
+    #[cfg(feature = "malachite")]
+    let result = match determinant.sign() {
+        Ordering::Less => -1.0,
+        Ordering::Equal => 0.0,
+        Ordering::Greater => 1.0,
+    };
+    #[cfg(feature = "num_bigint")]
     let result = match determinant.sign() {
         Sign::Minus => -1.0,
         Sign::NoSign => 0.0,
