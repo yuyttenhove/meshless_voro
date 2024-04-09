@@ -26,7 +26,7 @@ rstar = "0.12"
 rug = { version = "1.24", optional = true,  default-features = false, features = ["integer"] }
 
 [features]
-default = ["dashu", "rayon"]
+default = ["ibig", "rayon"]
 ## Enable parallel construction of the Voronoi grid.
 rayon = ["dep:rayon"]
 ## Allow saving Voronoi grids to
