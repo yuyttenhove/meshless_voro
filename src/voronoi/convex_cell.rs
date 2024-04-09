@@ -147,12 +147,12 @@ impl Iterator for ConvexCellDecomposition<'_> {
 }
 
 /// Meshless representation of a Voronoi cell as an intersection of
-/// [`HalfSpace`]s.
+/// half-spaces.
 ///
 /// Can be used to compute integrated cell and face quantities.
 #[derive(Clone, Debug)]
 pub struct ConvexCell {
-    /// The location of the generator of this `ConvexCell`/[`VoronoiCell`].
+    /// The location of the generator of this `ConvexCell`/`VoronoiCell`.
     pub loc: DVec3,
     /// [`Halfspace`]s that intersect to form this `ConvexCell`. Their normals
     /// are pointed inwards.
@@ -160,6 +160,7 @@ pub struct ConvexCell {
     pub(super) vertices: Vec<Vertex>,
     boundary: SimpleCycle,
     pub(super) safety_radius: f64,
+    /// The index (label) of the generator of this `ConvexCell`/`VoronoiCell`
     pub idx: usize,
     pub(super) dimensionality: Dimensionality,
 }

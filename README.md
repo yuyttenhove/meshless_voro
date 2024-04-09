@@ -43,17 +43,29 @@ info:
 
 ## Integer Arithmetic Backend
 
-The default backend for arbitrary precision integer arithemtic is 
-[`num_bigint`](https://crates.io/crates/num-bigint) (MIT/Apache 2.0).
-For most use cases there is no significant performance difference between the different 
-backends and `num_bigint` is the fastest to build.
+You can select from three backends for arbitrary precision integer arithmetic.
+These all provide identical functionality and vary only in performance and licensing.
 
-However, for highly degenerate seed configurations, it is recommended to use the alternative 
-[`rug`](https://crates.io/crates/rug) (LGPL-3.0+) backend, which can increase performance 
-up to 2x in these cases.
-It should be noted that this backend requires a C compiler to build and hence has the slowest build time.
+For most practical applications, the choice of backend does not significantly alter
+performance. However, for highly degenerate seed configurations - i.e. with many groups of more
+than 4 (almost) co-spherical seed points - many arbitrary precision arithmetic tests must be
+performed leading to some performance differences in such cases.
 
-*Using the `rug` backend also changes the license of the crate to LGPL-3.0+.*
+- [`dashu`](https://crates.io/crates/dashu) (MIT/Apache 2.0): This is the default backend.
+  Can be up to 40% slower than the `rug` backend for highly degenerate seed configurations.
+
+- [`ibig`](https://crates.io/crates/ibig) (MIT/Apache 2.0): Similar performance to the `dashu`
+  backend.
+
+- [`num_bigint`](https://crates.io/crates/num-bigint) (MIT/Apache 2.0): Worst performance for
+  degenerate seed configurations (measured up to 109% slower than `rug`)
+
+- [`malachite`](https://crates.io/crates/malachite) (LGPL-3.0-only): Slightly faster than the
+  `dashu` backend (up to 30% slower than `rug`).
+
+- [`rug`](https://crates.io/crates/rug) (LGPL-3.0+): The fastest backend, but depends on GNU GMP
+  via the `gmp-mpfr-sys` crate which requires a C compiler to build and hence has the slowest
+  build time.
 
 ## Cargo Features
 
@@ -61,13 +73,23 @@ It should be noted that this backend requires a C compiler to build and hence ha
 - `rayon` (enabled by default) – Enable parallel construction of the Voronoi
   grid.
 
-- `rug` – Use the `rug` crate as the arbitrary precision integer arithmethic backend instead of the default `big_int`. 
+- `hdf5` – Allow saving Voronoi grids to [HDF5 format](https://en.wikipedia.org/wiki/Hierarchical_Data_Format#HDF5).
+
+- `dashu` (enabled by default) — Use the `dashu` crate as the arbitrary precision integer arithmetic backend.
+
+- `ibig` — Use the `ibig` crate as the arbitrary precision integer arithmetic backend.
+
+- `malachite` — Use the `malachite` crate as the arbitrary precision integer arithmetic backend. 
+   
+  *Disclaimer*: this changes the license to the more restrictive LGPL-3.0-only license.
+
+- `num_bigint` — Use the `num_bigint` crate as the arbitrary precision integer arithmetic backend.
+
+- `rug` – Use the `rug` crate as the arbitrary precision integer arithmetic backend. 
   This can increase performance significantly for highly degenerate seed configurations where lots of arbitrary 
   precision arithmetic is needed. 
   
   *Disclaimer:* this changes the license to the more restrictive LGPL-3.0+ license.
-
-- `hdf5` – Allow saving Voronoi grids to HDF5 format.
 
 ## License
 
