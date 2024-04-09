@@ -43,7 +43,7 @@ info:
 
 ## Integer Arithmetic Backend
 
-You can select from three backends for arbitrary precision integer arithmetic.
+You can select from five backends for arbitrary precision integer arithmetic.
 These all provide identical functionality and vary only in performance and licensing.
 
 For most practical applications, the choice of backend does not significantly alter
