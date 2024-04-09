@@ -44,13 +44,16 @@ impl<'a> VoronoiFaceBuilder<'a> {
 pub struct VoronoiFace {
     /// Index of generator on the left of this face
     left: usize,
-    /// Index of the generator on the right of this face. May be `None` for boundary faces when reflective boundary conditions are used.
+    /// Index of the generator on the right of this face. May be `None` for
+    /// boundary faces when reflective boundary conditions are used.
     right: Option<usize>,
     area: f64,
     centroid: DVec3,
-    /// We follow the convention that the normals of faces point from the left generator to the right generator.
+    /// We follow the convention that the normals of faces point from the left
+    /// generator to the right generator.
     normal: DVec3,
-    /// Shift to apply to the right generator to bring it in the reference frame of the left (if any), when periodic boundary conditions are used.
+    /// Shift to apply to the right generator to bring it in the reference frame
+    /// of the left (if any), when periodic boundary conditions are used.
     shift: Option<DVec3>,
 }
 
@@ -79,7 +82,8 @@ impl VoronoiFace {
     }
 
     /// Get the index of the generator on the _right_ of this face.
-    /// Returns `None` if if this is a boundary face (i.e. obtained by clipping a Voronoi cell with the _simulation volume_).
+    /// Returns `None` if if this is a boundary face (i.e. obtained by clipping
+    /// a Voronoi cell with the _simulation volume_).
     pub fn right(&self) -> Option<usize> {
         self.right
     }
@@ -94,13 +98,15 @@ impl VoronoiFace {
         self.centroid
     }
 
-    /// Get a normal vector to this face, pointing away from the _left_ generator.
+    /// Get a normal vector to this face, pointing away from the _left_
+    /// generator.
     pub fn normal(&self) -> DVec3 {
         self.normal
     }
 
-    /// Get the shift vector (if any) to apply to the generator to the right of this face to bring it to the reference frame of this face.
-    /// Can only be `Some` for periodic Voronoi tesselations.
+    /// Get the shift vector (if any) to apply to the generator to the right of
+    /// this face to bring it to the reference frame of this face.
+    /// Can only be `Some` for periodic Voronoi tessellations.
     pub fn shift(&self) -> Option<DVec3> {
         self.shift
     }

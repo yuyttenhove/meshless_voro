@@ -8,30 +8,35 @@ use super::convex_cell::ConvexCell;
 
 /// Trait to implement new integrators for Voronoi cells.
 ///
-/// Integrators are expected to compute quanties of interest for Voronoi cells iteratively.
-/// The Voronoi cell is decomposed into a number of oriented tetrahedra,
-/// which are fed one by one to the cell-integrators.
+/// Integrators are expected to compute quantities of interest for Voronoi cells
+/// iteratively. The Voronoi cell is decomposed into a number of oriented
+/// tetrahedra, which are fed one by one to the cell-integrators.
 ///
 /// We use the following orientation convention:
-/// - If the three vertices are ordered counterclockwise as seen from the top, the tetrahedron is assumed to be part of
-///   the Voronoi cell and should contribute positively to integrals.
-/// - If the three vertices are ordered clockwise, the tetrahedron should substract from the integrals.
-///   this is to correct for another tetrahedron that is not fully contained within the Voronoi cell.
+///
+/// - If the three vertices are ordered counterclockwise as seen from the top,
+///   the tetrahedron is assumed to be part of the Voronoi cell and should
+///   contribute positively to integrals.
+///
+/// - If the three vertices are ordered clockwise, the tetrahedron should
+///   subtract from the integrals. this is to correct for another tetrahedron
+///   that is not fully contained within the Voronoi cell.
 pub trait CellIntegral: Sized {
-    /// Initialize a CellIntegral for the given ConvexCell.
+    /// Initialize a [`CellIntegral`] for the given [`ConvexCell`].
     fn init(cell: &ConvexCell) -> Self;
 
-    /// Update the state of the integrator using one oriented tetrahedron (with the cell's generator `gen` as top),
-    /// which is part of a cell.
+    /// Update the state of the integrator using one oriented tetrahedron (with
+    /// the cell's generator `gen` as top), which is part of a cell.
     fn collect(&mut self, v0: DVec3, v1: DVec3, v2: DVec3, gen: DVec3);
 
     /// Finalize the calculation and return the result
     fn finalize(self) -> Self;
 }
 
-/// Trait to implement new integrators that use external data in their calculation.
+/// Trait to implement new integrators that use external data in their
+/// calculation.
 pub trait CellIntegralWithData<D: Copy>: CellIntegral {
-    /// Initialize a CellIntegral with some extra data.
+    /// Initialize a [`CellIntegral`] with some extra data.
     fn init_with_data(cell: &ConvexCell, data: D) -> Self;
 }
 
@@ -78,7 +83,8 @@ impl CellIntegral for VolumeCentroidIntegrator {
     }
 }
 
-/// Example implementation of a simple cell integrator for computing the volume of a ConvexCell
+/// Example implementation of a simple cell integrator for computing the volume
+/// of a [`ConvexCell`].
 #[derive(Default)]
 pub struct VolumeIntegral {
     pub volume: f64,
@@ -98,32 +104,39 @@ impl CellIntegral for VolumeIntegral {
     }
 }
 
-/// Trait to implement new integrators for Voronoi Faces.
+/// Trait to implement new integrators for Voronoi faces.
 ///
-/// Integrators are expected to compute quanties of interest for Voronoi faces iteratively.
-/// The Voronoi cell is decomposed into a number of oriented tetrahedra.
-/// Tetrahedra contributing to the same face are fed one by one to the face-integrators.
+/// Integrators are expected to compute quantities of interest for Voronoi faces
+/// iteratively. The Voronoi cell is decomposed into a number of oriented
+/// tetrahedra. Tetrahedra contributing to the same face are fed one by one to
+/// the face-integrators.
 ///
 /// We use the following orientation convention:
-/// - If the three vertices are ordered counterclockwise as seen from the top, the tetrahedron is assumed to be part of
-///   the Voronoi cell and should contribute positively to integrals.
-/// - If the three vertices are ordered clockwise, the tetrahedron should substract from the integrals.
-///   this is to correct for another tetrahedron that is not fully contained within the Voronoi cell.
+///
+/// - If the three vertices are ordered counterclockwise as seen from the top,
+///   the tetrahedron is assumed to be part of the Voronoi cell and should
+///   contribute positively to integrals.
+///
+/// - If the three vertices are ordered clockwise, the tetrahedron should
+///   subtract from the integrals. this is to correct for another tetrahedron
+///   that is not fully contained within the Voronoi cell.
 pub trait FaceIntegral: Clone {
-    /// Initialize a FaceIntegral for the given ConvexCell and clipping_plane_index.
+    /// Initialize a [`FaceIntegral`] for the given [`ConvexCell`] and
+    /// clipping_plane_index.
     fn init(cell: &ConvexCell, clipping_plane_idx: usize) -> Self;
 
-    /// Update the state of the integrator using one oriented tetrahedron (with the cell's generator `gen` as top),
-    /// which is part of a cell.
+    /// Update the state of the integrator using one oriented tetrahedron (with
+    /// the cell's generator `gen` as top), which is part of a cell.
     fn collect(&mut self, v0: DVec3, v1: DVec3, v2: DVec3, gen: DVec3);
 
     /// Finalize the calculation and return the result
     fn finalize(self) -> Self;
 }
 
-/// Trait to implement new integrators that use external data in their calculation.
+/// Trait to implement new integrators that use external data in their
+/// calculation.
 pub trait FaceIntegralWithData<D: Copy>: FaceIntegral {
-    /// Initialize a CellIntegral with some extra data.
+    /// Initialize a [`CellIntegral`] with some extra data.
     fn init_with_data(cell: &ConvexCell, clipping_plane_idx: usize, data: D) -> Self;
 }
 
@@ -170,7 +183,8 @@ impl FaceIntegral for AreaCentroidIntegrator {
     }
 }
 
-/// Example implementation of a simple face integrator for computing the area of the faces of a ConvexCell
+/// Example implementation of a simple face integrator for computing the area of
+/// the faces of a [`ConvexCell`].
 pub struct AreaIntegral {
     pub area: f64,
 }

@@ -1,9 +1,7 @@
-use std::collections::BinaryHeap;
-
+use crate::voronoi::{Dimensionality, Generator};
 use glam::DVec3;
 use rstar::{Envelope, ParentNode, Point, PointDistance, RTree, RTreeNode, RTreeObject, AABB};
-
-use crate::voronoi::{Dimensionality, Generator};
+use std::collections::BinaryHeap;
 
 pub(crate) fn build_rtree(generators: &[Generator]) -> RTree<Generator> {
     RTree::bulk_load(generators.to_vec())
@@ -13,11 +11,7 @@ pub fn nn_iter<'a>(
     rtree: &'a RTree<Generator>,
     loc: DVec3,
 ) -> Box<dyn Iterator<Item = (usize, Option<DVec3>)> + 'a> {
-    Box::new(
-        rtree
-            .nearest_neighbor_iter(&[loc.x, loc.y, loc.z])
-            .map(|g| (g.id(), None)),
-    )
+    Box::new(rtree.nearest_neighbor_iter(&[loc.x, loc.y, loc.z]).map(|g| (g.id(), None)))
 }
 
 pub(crate) fn wrapping_nn_iter<'a>(
@@ -76,23 +70,20 @@ impl<'a> RTreeWrappingNearestNeighbourIter<'a, Generator> {
             query_point,
         };
 
-        // Add the children of this node to the heap and also shifted versions of it for all directions
+        // Add the children of this node to the heap and also shifted versions of it for
+        // all directions
         let j_range = match dimensionality {
-            Dimensionality::Dimensionality2D | Dimensionality::Dimensionality3D => -1..=1,
-            Dimensionality::Dimensionality1D => 0..=0,
+            Dimensionality::TwoD | Dimensionality::ThreeD => -1..=1,
+            Dimensionality::OneD => 0..=0,
         };
         let k_range = match dimensionality {
-            Dimensionality::Dimensionality3D => -1..=1,
-            Dimensionality::Dimensionality1D | Dimensionality::Dimensionality2D => 0..=0,
+            Dimensionality::ThreeD => -1..=1,
+            Dimensionality::OneD | Dimensionality::TwoD => 0..=0,
         };
         for i in -1..=1 {
             for j in j_range.clone() {
                 for k in k_range.clone() {
-                    let shift = [
-                        i as f64 * width[0],
-                        j as f64 * width[1],
-                        k as f64 * width[2],
-                    ];
+                    let shift = [i as f64 * width[0], j as f64 * width[1], k as f64 * width[2]];
                     result.extend_heap(root.children(), shift);
                 }
             }
@@ -202,8 +193,7 @@ where
     T: WrappingPointDistance,
 {
     fn partial_cmp(&self, other: &Self) -> Option<::core::cmp::Ordering> {
-        // Inverse comparison creates a min heap
-        other.distance.partial_cmp(&self.distance)
+        Some(self.cmp(other))
     }
 }
 
@@ -214,7 +204,11 @@ where
     T: WrappingPointDistance,
 {
     fn cmp(&self, other: &Self) -> ::core::cmp::Ordering {
-        self.partial_cmp(other).unwrap()
+        // Inverse comparison creates a min heap
+        other
+            .distance
+            .partial_cmp(&self.distance)
+            .expect("Distances to RTree nodes must be finite")
     }
 }
 

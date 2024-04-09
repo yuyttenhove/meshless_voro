@@ -15,28 +15,28 @@ pub(super) struct DualVertex {
 
 impl DualVertex {
     fn new(
-        _0: usize,
-        _1: usize,
-        _2: usize,
+        n_0: usize,
+        n_1: usize,
+        n_2: usize,
         loc: DVec3,
         neighbours: &[Neighbour],
         dimensionality: Dimensionality,
     ) -> Self {
         let mut circumcenter = intersect_planes(
-            &neighbours[_0].plane,
-            &neighbours[_1].plane,
-            &neighbours[_2].plane,
+            &neighbours[n_0].plane,
+            &neighbours[n_1].plane,
+            &neighbours[n_2].plane,
         );
         match dimensionality {
-            Dimensionality::Dimensionality1D => {
+            Dimensionality::OneD => {
                 circumcenter.y = 0.;
                 circumcenter.z = 0.;
             }
-            Dimensionality::Dimensionality2D => circumcenter.z = 0.,
-            Dimensionality::Dimensionality3D => (),
+            Dimensionality::TwoD => circumcenter.z = 0.,
+            Dimensionality::ThreeD => (),
         }
         Self {
-            repr: (_0, _1, _2),
+            repr: (n_0, n_1, n_2),
             circumradius2: (loc - circumcenter).length_squared(),
         }
     }
@@ -83,7 +83,8 @@ pub(super) struct ConvexCell {
 }
 
 impl ConvexCell {
-    /// Initialize each voronoi cell as the bounding box of the simulation volume.
+    /// Initialize each Voronoi cell as the bounding box of the simulation
+    /// volume.
     pub(super) fn init(
         loc: DVec3,
         idx: usize,
@@ -95,13 +96,11 @@ impl ConvexCell {
         if periodic {
             anchor.x -= width.x;
             width.x *= 3.;
-            if let Dimensionality::Dimensionality2D | Dimensionality::Dimensionality3D =
-                dimensionality
-            {
+            if let Dimensionality::TwoD | Dimensionality::ThreeD = dimensionality {
                 anchor.y -= width.y;
                 width.y *= 3.;
             };
-            if let Dimensionality::Dimensionality3D = dimensionality {
+            if let Dimensionality::ThreeD = dimensionality {
                 anchor.z -= width.z;
                 width.z *= 3.;
             }
@@ -109,42 +108,12 @@ impl ConvexCell {
         let opposite = anchor + width;
 
         let neighbours = vec![
-            Neighbour::new(
-                DVec3::new(2. * anchor.x - loc.x, loc.y, loc.z),
-                None,
-                None,
-                loc,
-            ),
-            Neighbour::new(
-                DVec3::new(2. * opposite.x - loc.x, loc.y, loc.z),
-                None,
-                None,
-                loc,
-            ),
-            Neighbour::new(
-                DVec3::new(loc.x, 2. * anchor.y - loc.y, loc.z),
-                None,
-                None,
-                loc,
-            ),
-            Neighbour::new(
-                DVec3::new(loc.x, 2. * opposite.y - loc.y, loc.z),
-                None,
-                None,
-                loc,
-            ),
-            Neighbour::new(
-                DVec3::new(loc.x, loc.y, 2. * anchor.z - loc.z),
-                None,
-                None,
-                loc,
-            ),
-            Neighbour::new(
-                DVec3::new(loc.x, loc.y, 2. * opposite.z - loc.z),
-                None,
-                None,
-                loc,
-            ),
+            Neighbour::new(DVec3::new(2. * anchor.x - loc.x, loc.y, loc.z), None, None, loc),
+            Neighbour::new(DVec3::new(2. * opposite.x - loc.x, loc.y, loc.z), None, None, loc),
+            Neighbour::new(DVec3::new(loc.x, 2. * anchor.y - loc.y, loc.z), None, None, loc),
+            Neighbour::new(DVec3::new(loc.x, 2. * opposite.y - loc.y, loc.z), None, None, loc),
+            Neighbour::new(DVec3::new(loc.x, loc.y, 2. * anchor.z - loc.z), None, None, loc),
+            Neighbour::new(DVec3::new(loc.x, loc.y, 2. * opposite.z - loc.z), None, None, loc),
         ];
         let vertices = vec![
             DualVertex::new(2, 5, 0, loc, &neighbours, dimensionality),
@@ -169,7 +138,8 @@ impl ConvexCell {
         cell
     }
 
-    /// Build the Convex cell by repeatedly intersecting it with the appropriate half spaces
+    /// Build the Convex cell by repeatedly intersecting it with the appropriate
+    /// half spaces
     pub(super) fn build(
         &mut self,
         generators: &[Generator],
@@ -178,14 +148,12 @@ impl ConvexCell {
     ) {
         // skip the first nearest neighbour (will be this cell)
         assert_eq!(
-            nearest_neighbours
-                .next()
-                .expect("Nearest neighbours cannot be empty!")
-                .0,
+            nearest_neighbours.next().expect("Nearest neighbours cannot be empty!").0,
             self.idx,
             "First nearest neighbour should be the generator itself!"
         );
-        // now loop over the nearest neighbours and clip this cell until the safety radius is reached
+        // now loop over the nearest neighbours and clip this cell until the safety
+        // radius is reached
         for (idx, shift) in nearest_neighbours {
             let generator = generators[idx];
             let ngb_loc;
@@ -228,18 +196,16 @@ impl ConvexCell {
         // Were any vertices clipped?
         if num_r > 0 {
             let new_idx = self.neighbours.len();
-            self.neighbours
-                .push(Neighbour::new(ngb_loc, Some(ngb_idx), shift, self.loc));
+            self.neighbours.push(Neighbour::new(ngb_loc, Some(ngb_idx), shift, self.loc));
             self.boundary.grow();
-            // Compute the boundary of the (dual) topological triangulated disk around the vertices to be removed.
+            // Compute the boundary of the (dual) topological triangulated disk around the
+            // vertices to be removed.
             Self::compute_boundary(&mut self.boundary, &mut self.vertices[num_v..]);
             let mut boundary = self.boundary.iter().take(self.boundary.len + 1);
             // finally we can *realy* remove the vertices.
             self.vertices.truncate(num_v);
             // Add new vertices constructed from the new clipping plane and the boundary
-            let mut cur = boundary
-                .next()
-                .expect("Boundary contains at least 3 elements");
+            let mut cur = boundary.next().expect("Boundary contains at least 3 elements");
             for next in boundary {
                 self.vertices.push(DualVertex::new(
                     cur,
@@ -270,10 +236,7 @@ impl ConvexCell {
             // Look for a suitable next vertex to extend the boundary
             let mut idx = i;
             loop {
-                assert!(
-                    idx < vertices.len(),
-                    "No suitable vertex found to extend boundary!"
-                );
+                assert!(idx < vertices.len(), "No suitable vertex found to extend boundary!");
                 let vertex = &vertices[idx];
                 match boundary.try_extend(vertex.repr.0, vertex.repr.1, vertex.repr.2) {
                     Ok(()) => {

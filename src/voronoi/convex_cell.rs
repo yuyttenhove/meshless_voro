@@ -1,25 +1,24 @@
-use glam::DVec3;
-
+use super::{
+    boundary::SimulationBoundary, convex_cell_alternative::ConvexCell as ConvexCellAlternative,
+    half_space::HalfSpace, Dimensionality, Generator,
+};
 use crate::{
     geometry::{in_sphere_test_exact, intersect_planes, Plane},
     integrals::{CellIntegralWithData, FaceIntegralWithData},
     simple_cycle::SimpleCycle,
 };
+use glam::DVec3;
 
-use super::{
-    boundary::SimulationBoundary,
-    convex_cell_alternative::ConvexCell as ConvexCellAlternative,
-    half_space::HalfSpace,
-    Dimensionality, Generator,
-};
-
-/// A Vertex of a convex cell.
+/// A vertex of a [`ConvexCell`].
 ///
 /// Stores:
-/// - the location of the vertex
-/// - its dual representation: the indices of the three half spaces that intersect at the vertex
-///   (in counterclockwise order around the vertex).
-/// - the safety radius for this vertex.
+///
+/// - The location of the vertex.
+///
+/// - Its dual representation: the indices of the three half spaces that
+///   intersect at the vertex (in counterclockwise order around the vertex).
+///
+/// - The safety radius for this vertex.
 #[derive(Clone, Debug)]
 pub(super) struct Vertex {
     pub loc: DVec3,
@@ -36,15 +35,12 @@ impl Vertex {
         gen_loc: DVec3,
         dimensionality: Dimensionality,
     ) -> Self {
-        let loc = intersect_planes(
-            &half_spaces[i].plane,
-            &half_spaces[j].plane,
-            &half_spaces[k].plane,
-        );
+        let loc =
+            intersect_planes(&half_spaces[i].plane, &half_spaces[j].plane, &half_spaces[k].plane);
         let d_loc = match dimensionality {
-            Dimensionality::Dimensionality1D => DVec3::new(loc.x, 0., 0.),
-            Dimensionality::Dimensionality2D => DVec3::new(loc.x, loc.y, 0.),
-            Dimensionality::Dimensionality3D => loc,
+            Dimensionality::OneD => DVec3::new(loc.x, 0., 0.),
+            Dimensionality::TwoD => DVec3::new(loc.x, loc.y, 0.),
+            Dimensionality::ThreeD => loc,
         };
         Vertex {
             loc,
@@ -54,14 +50,19 @@ impl Vertex {
     }
 }
 
-/// An oriented tetrahedron, part of a decomposition of a ConvexCell.
-/// The generator of the corresponding ConvexCell is forms the top of the tetrahedron.
+/// An oriented tetrahedron, part of a decomposition of a [`ConvexCell`].
+/// The generator of the corresponding [`ConvexCell`] is forms the top of the
+/// tetrahedron.
 ///
 /// We use the following orientation convention:
-/// - If the three vertices are ordered counterclockwise as seen from the top, the tetrahedron is assumed to be part of
-///   the ConvexCell and should contribute from any integrals that will be computed.
-/// - If the vertices are ordered clockwise, the tetrahedron should substract from the integrals,
-///   to correct for another tetrahedron that was not fully contained within the ConvexCell.
+///
+/// - If the three vertices are ordered counterclockwise as seen from the top,
+///   the tetrahedron is assumed to be part of the `ConvexCell` and should
+///   contribute from any integrals that will be computed.
+///
+/// - If the vertices are ordered clockwise, the tetrahedron should subtract
+///   from the integrals, to correct for another tetrahedron that was not fully
+///   contained within the `ConvexCell`.
 pub(super) struct ConvexCellTet {
     pub plane_idx: usize,
     pub vertices: [DVec3; 3],
@@ -76,9 +77,10 @@ impl ConvexCellTet {
     }
 }
 
-/// Decompose a ConvexCell into an iterator of oriented tetrahedra.
+/// Decompose a [`ConvexCell`] into an iterator of oriented tetrahedra.
 ///
-/// Usefull to compute integrals, such as volume, area, centroid... for ConvexCells.
+/// Useful to compute integrals, such as volume, area, centroid, etc. for
+/// [`ConvexCell`]s.
 pub(super) struct ConvexCellDecomposition<'a> {
     convex_cell: &'a ConvexCell,
     cur_vertex_idx: usize,
@@ -108,7 +110,7 @@ impl<'a> ConvexCellDecomposition<'a> {
                 &self.convex_cell.clipping_planes[self.cur_vertex.dual[(i + 1) % 3]].plane;
             self.projections[2 * i] = cur_plane.project_onto(self.convex_cell.loc);
             self.projections[2 * i + 1] =
-                next_plane.project_onto_intersection(&cur_plane, self.convex_cell.loc);
+                next_plane.project_onto_intersection(cur_plane, self.convex_cell.loc);
         }
     }
 }
@@ -144,24 +146,28 @@ impl Iterator for ConvexCellDecomposition<'_> {
     }
 }
 
-/// Meshless representation of a Voronoi cell as an intersection of halfspaces.
+/// Meshless representation of a Voronoi cell as an intersection of
+/// half-spaces.
 ///
-/// Can be used to compute integrated cell and face quantities
+/// Can be used to compute integrated cell and face quantities.
 #[derive(Clone, Debug)]
 pub struct ConvexCell {
-    /// The location of the generator of this ConvexCell/VoronoiCell
+    /// The location of the generator of this `ConvexCell`/`VoronoiCell`.
     pub loc: DVec3,
-    /// Halfspaces that intersect to form this ConvexCell. Their normals are pointed inwards.
+    /// [`Halfspace`]s that intersect to form this `ConvexCell`. Their normals
+    /// are pointed inwards.
     pub(super) clipping_planes: Vec<HalfSpace>,
     pub(super) vertices: Vec<Vertex>,
     boundary: SimpleCycle,
     pub(super) safety_radius: f64,
+    /// The index (label) of the generator of this `ConvexCell`/`VoronoiCell`
     pub idx: usize,
     pub(super) dimensionality: Dimensionality,
 }
 
 impl ConvexCell {
-    /// Initialize each voronoi cell as the bounding box of the simulation volume.
+    /// Initialize each Voronoi cell as the bounding box of the simulation
+    /// volume.
     pub(super) fn init(loc: DVec3, idx: usize, simulation_boundary: &SimulationBoundary) -> Self {
         let clipping_planes = simulation_boundary.clipping_planes.clone();
 
@@ -190,7 +196,8 @@ impl ConvexCell {
         cell
     }
 
-    /// Build the Convex cell by repeatedly intersecting it with the appropriate half spaces
+    /// Build the Convex cell by repeatedly intersecting it with the appropriate
+    /// half spaces
     pub(super) fn build(
         loc: DVec3,
         idx: usize,
@@ -201,14 +208,12 @@ impl ConvexCell {
         let mut cell = ConvexCell::init(loc, idx, simulation_boundary);
         // skip the first nearest neighbour (will be this cell)
         assert_eq!(
-            nearest_neighbours
-                .next()
-                .expect("Nearest neighbours cannot be empty!")
-                .0,
+            nearest_neighbours.next().expect("Nearest neighbours cannot be empty!").0,
             cell.idx,
             "First nearest neighbour should be the generator itself!"
         );
-        // now loop over the nearest neighbours and clip this cell until the safety radius is reached
+        // now loop over the nearest neighbours and clip this cell until the safety
+        // radius is reached
         for (idx, shift) in nearest_neighbours {
             let generator = generators[idx];
             let ngb_loc;
@@ -279,15 +284,14 @@ impl ConvexCell {
             let p_idx = self.clipping_planes.len();
             self.clipping_planes.push(p);
             self.boundary.grow();
-            // Compute the boundary of the (dual) topological triangulated disk around the vertices to be removed.
+            // Compute the boundary of the (dual) topological triangulated disk around the
+            // vertices to be removed.
             Self::compute_boundary(&mut self.boundary, &mut self.vertices[num_v..]);
             let mut boundary = self.boundary.iter().take(self.boundary.len + 1);
             // finally we can *realy* remove the vertices.
             self.vertices.truncate(num_v);
             // Add new vertices constructed from the new clipping plane and the boundary
-            let mut cur = boundary
-                .next()
-                .expect("Boundary contains at least 3 elements");
+            let mut cur = boundary.next().expect("Boundary contains at least 3 elements");
             for next in boundary {
                 self.vertices.push(Vertex::from_dual(
                     cur,
@@ -304,20 +308,13 @@ impl ConvexCell {
     }
 
     fn compute_boundary(boundary: &mut SimpleCycle, vertices: &mut [Vertex]) {
-        boundary.init(
-            vertices[0].dual[0],
-            vertices[0].dual[1],
-            vertices[0].dual[2],
-        );
+        boundary.init(vertices[0].dual[0], vertices[0].dual[1], vertices[0].dual[2]);
 
         for i in 1..vertices.len() {
             // Look for a suitable next vertex to extend the boundary
             let mut idx = i;
             loop {
-                assert!(
-                    idx < vertices.len(),
-                    "No suitable vertex found to extend boundary!"
-                );
+                assert!(idx < vertices.len(), "No suitable vertex found to extend boundary!");
                 let vertex = &vertices[idx].dual;
                 match boundary.try_extend(vertex[0], vertex[1], vertex[2]) {
                     Ok(()) => {
@@ -345,23 +342,24 @@ impl ConvexCell {
     }
 
     /// Get the index of the generator on the opposite side of a clipping plane.
-    pub fn get_neighbour(&self, clipping_plane_idx: usize) -> Option<usize> {
+    pub fn neighbour(&self, clipping_plane_idx: usize) -> Option<usize> {
         self.clipping_planes[clipping_plane_idx].right_idx
     }
 
-    /// Get the shift (if any) associated with a given clipping plane (for applying periodic boundary conditions).
-    pub fn get_shift(&self, clipping_plane_idx: usize) -> Option<DVec3> {
+    /// Get the shift (if any) associated with a given clipping plane (for
+    /// applying periodic boundary conditions).
+    pub fn shift(&self, clipping_plane_idx: usize) -> Option<DVec3> {
         self.clipping_planes[clipping_plane_idx].shift
     }
 
-    pub fn get_plane(&self, clipping_plane_idx: usize) -> Plane {
+    pub fn plane(&self, clipping_plane_idx: usize) -> Plane {
         self.clipping_planes[clipping_plane_idx].plane.clone()
     }
 
     /// Compute a custom integrated quantity for this cell.
     pub fn compute_cell_integral<D: Copy, T: CellIntegralWithData<D>>(&self, extra_data: D) -> T {
         // Compute integral from decomposition of convex cell
-        let mut integrator = T::init_with_data(&self, extra_data);
+        let mut integrator = T::init_with_data(self, extra_data);
         for tet in self.decompose() {
             integrator.collect(tet.vertices[0], tet.vertices[1], tet.vertices[2], self.loc);
         }
@@ -369,11 +367,11 @@ impl ConvexCell {
     }
 
     fn clipping_plane_has_valid_dimensionality(&self, plane_idx: usize) -> bool {
-        self.dimensionality
-            .vector_is_valid(self.clipping_planes[plane_idx].normal())
+        self.dimensionality.vector_is_valid(self.clipping_planes[plane_idx].normal())
     }
 
-    /// Compute a custom integrated quantity for the faces of this cell (non-symmetric version).
+    /// Compute a custom integrated quantity for the faces of this cell
+    /// (non-symmetric version).
     pub fn compute_face_integrals<D: Copy, T: FaceIntegralWithData<D>>(
         &self,
         extra_data: D,
@@ -399,9 +397,11 @@ impl ConvexCell {
 
     /// Compute a custom integrated quantity for the faces of this cell.
     ///
-    /// Symmetric version: skips faces that are shared with active cells with a smaller idx.
+    /// Symmetric version: skips faces that are shared with active cells with a
+    /// smaller idx.
     ///
-    /// - `mask`: A mask indicating which for which generators convex_cells are actually constructed.
+    /// - `mask`: A mask indicating which for which generators convex cells are
+    ///   actually constructed.
     pub fn compute_face_integrals_sym<D: Copy, T: FaceIntegralWithData<D>>(
         &self,
         extra_data: D,
@@ -417,7 +417,8 @@ impl ConvexCell {
             let integral = &mut integrals[tet.plane_idx];
             if integral.is_none() {
                 match &self.clipping_planes[tet.plane_idx] {
-                    // If the face is no boundary face and right_idx < this cell's idx corresponds to an active cell, we already treated this face.
+                    // If the face is no boundary face and right_idx < this cell's idx corresponds
+                    // to an active cell, we already treated this face.
                     &HalfSpace {
                         shift: None,
                         right_idx: Some(right_idx),
@@ -426,7 +427,8 @@ impl ConvexCell {
                     _ => (),
                 }
             }
-            let integral = integral.get_or_insert_with(|| T::init_with_data(self, tet.plane_idx, extra_data));
+            let integral =
+                integral.get_or_insert_with(|| T::init_with_data(self, tet.plane_idx, extra_data));
             integral.collect(tet.vertices[0], tet.vertices[1], tet.vertices[2], self.loc);
         }
 
@@ -454,7 +456,7 @@ impl From<ConvexCellAlternative> for ConvexCell {
                     v.repr.2,
                     &clipping_planes,
                     convex_cell_alt.loc,
-                    Dimensionality::Dimensionality3D,
+                    Dimensionality::ThreeD,
                 )
             })
             .collect::<Vec<_>>();
@@ -473,17 +475,13 @@ impl From<ConvexCellAlternative> for ConvexCell {
 
 #[cfg(test)]
 mod test {
-    use crate::voronoi::{boundary::SimulationBoundary, half_space::HalfSpace, Generator};
-
     use super::*;
-
-    const DIM3D: usize = 3;
 
     #[test]
     fn test_init_cuboid() {
         let anchor = DVec3::splat(1.);
         let width = DVec3::splat(4.);
-        let cell = SimulationBoundary::cuboid(anchor, width, false, DIM3D.into());
+        let cell = SimulationBoundary::cuboid(anchor, width, false, Dimensionality::ThreeD.into());
 
         assert_eq!(cell.clipping_planes.len(), 6);
     }
@@ -493,23 +491,20 @@ mod test {
         let anchor = DVec3::splat(1.);
         let width = DVec3::splat(2.);
         let loc = DVec3::splat(2.);
-        let volume = SimulationBoundary::cuboid(anchor, width, false, DIM3D.into());
+        let volume =
+            SimulationBoundary::cuboid(anchor, width, false, Dimensionality::ThreeD.into());
         let mut cell = ConvexCell::init(loc, 0, &volume);
 
         let ngb = DVec3::splat(2.5);
         let generators = [
-            Generator::new(0, loc, DIM3D.into()),
-            Generator::new(1, ngb, DIM3D.into()),
+            Generator::new(0, loc, Dimensionality::ThreeD.into()),
+            Generator::new(1, ngb, Dimensionality::ThreeD.into()),
         ];
         let dx = cell.loc - ngb;
         let dist = dx.length();
         let n = dx / dist;
         let p = 0.5 * (cell.loc + ngb);
-        cell.clip_by_plane(
-            HalfSpace::new(n, p, Some(1), Some(DVec3::ZERO)),
-            &generators,
-            &volume,
-        );
+        cell.clip_by_plane(HalfSpace::new(n, p, Some(1), Some(DVec3::ZERO)), &generators, &volume);
 
         assert_eq!(cell.clipping_planes.len(), 7)
     }

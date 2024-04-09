@@ -106,14 +106,7 @@ mod test {
 
     #[test]
     fn test_extend() {
-        let mut tris = vec![
-            (2, 4, 1),
-            (1, 5, 2),
-            (5, 1, 3),
-            (5, 3, 6),
-            (3, 4, 6),
-            (4, 3, 1),
-        ];
+        let mut tris = [(2, 4, 1), (1, 5, 2), (5, 1, 3), (5, 3, 6), (3, 4, 6), (4, 3, 1)];
 
         let mut boundary = SimpleCycle::new(7);
         boundary.init(tris[0].0, tris[0].1, tris[0].2);
