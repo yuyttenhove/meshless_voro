@@ -40,33 +40,54 @@
 //!
 //! # Integer Arithmetic Backend
 //!
-//! You can select from three backends for arbitrary precision integer
-//! arithmetic.
+//! You can select from three backends for arbitrary precision integer arithmetic.
+//! These all provide identical functionality and vary only in performance and licensing.
 //!
-//! - [`dashu`](https://crates.io/crates/dashu) (MIT/Apache 2.0) runs the test
-//!   suit at the same speed as `rug`. This is the default backend.
+//! For most practical applications, the choice of backend does not significantly alter
+//! performance. However, for highly degenerate seed configurations - i.e. with many groups of more
+//! than 4 (almost) co-spherical seed points - many arbitrary precision arithmetic tests must be
+//! performed leading to some performance differences in such cases.
 //!
-//! - [`malachite`](https://crates.io/crates/malachite) (LGPL-3.0-only) runs the
-//!   test suite about 6% slower than `rug` but builds considerably faster.
+//! - [`dashu`](https://crates.io/crates/dashu) (MIT/Apache 2.0): This is the default backend.
+//!   Can be up to 40% slower than the `rug` backend for highly degenerate seed configurations.
 //!
-//! - [`rug`](https://crates.io/crates/rug) (LGPL-3.0+) runs the test suite
-//!   faster than `malachite` but depends on GNU GMP via the `gmp-mpfr-sys`
-//!   crate which requires a C compiler to build and has the slowest build time
-//!   thus.
+//! - [`ibig`](https://crates.io/crates/ibig) (MIT/Apache 2.0): Similar performance to the `dashu`
+//!   backend.
+//!
+//! - [`num_bigint`](https://crates.io/crates/num-bigint) (MIT/Apache 2.0): Worst performance for
+//!   degenerate seed configurations (measured up to 109% slower than `rug`)
+//!
+//! - [`malachite`](https://crates.io/crates/malachite) (LGPL-3.0-only): Slightly faster than the
+//!   `dashu` backend (up to 30% slower than `rug`).
+//!
+//! - [`rug`](https://crates.io/crates/rug) (LGPL-3.0+): The fastest backend, but depends on GNU GMP
+//!   via the `gmp-mpfr-sys` crate which requires a C compiler to build and hence has the slowest
+//!   build time.
 //!
 //! # Cargo Features
 #![doc = document_features::document_features!()]
 
 #[cfg(any(
-    all(feature = "rug", feature = "malachite"),
-    all(feature = "rug", feature = "malachite-base"),
-    all(feature = "rug", feature = "malachite-nz"),
-    all(feature = "dashu", feature = "malachite"),
-    all(feature = "dashu", feature = "malachite-base"),
-    all(feature = "dashu", feature = "malachite-nz"),
+    all(feature = "malachite", feature = "rug"),
+    all(feature = "malachite", feature = "dashu"),
+    all(feature = "malachite", feature = "num_bigint"),
+    all(feature = "malachite", feature = "ibig"),
+    all(feature = "malachite-base", feature = "rug"),
+    all(feature = "malachite-base", feature = "dashu"),
+    all(feature = "malachite-base", feature = "num_bigint"),
+    all(feature = "malachite-base", feature = "ibig"),
+    all(feature = "malachite-nz", feature = "rug"),
+    all(feature = "malachite-nz", feature = "dashu"),
+    all(feature = "malachite-nz", feature = "num_bigint"),
+    all(feature = "malachite-nz", feature = "ibig"),
     all(feature = "rug", feature = "dashu"),
+    all(feature = "rug", feature = "num_bigint"),
+    all(feature = "rug", feature = "ibig"),
+    all(feature = "dashu", feature = "num_bigint"),
+    all(feature = "dashu", feature = "ibig"),
+    all(feature = "num_bigint", feature = "ibig"),
 ))]
-compile_error!("Illegal feature combination selected");
+compile_error!("Multiple arbitrary precision arithmetic backends enabled!");
 
 mod bounding_sphere;
 pub mod geometry;

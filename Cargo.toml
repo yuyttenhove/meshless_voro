@@ -3,7 +3,7 @@ name = "meshless_voronoi"
 description = "An implementation of the Meshless Voronoi algorithm."
 version = "0.5.9"
 edition = "2021"
-license = "MIT OR Apache-2.0"
+license = "MIT OR Apache-2.0 OR LGPL-3.0-only OR LGPL-3.0+"
 repository = "https://github.com/yuyttenhove/meshless_voro"
 documentation = "https://docs.rs/meshless_voronoi"
 keywords = ["voronoi", "graphics", "diagram"]
@@ -16,21 +16,25 @@ dashu = { version = "0.4", optional = true }
 document-features = "0.2"
 glam = "0.27"
 hdf5 = { version = "0.8", optional = true }
+ibig = {  version = "0.3", optional = true, default-features = false }
 malachite-base = { version = "0.4", optional = true }
 malachite-nz = { version = "0.4", optional = true }
 num-bigint = { version = "0.4", optional = true }
 num_enum = { version = "0.7.2", default-features = false }
 rayon = { version = "1", optional = true }
 rstar = "0.12"
-rug = { version = "1.24", optional = true }
+rug = { version = "1.24", optional = true,  default-features = false, features = ["integer"] }
 
 [features]
-default = ["num_bigint", "rayon"]
+default = ["ibig", "rayon"]
 ## Enable parallel construction of the Voronoi grid.
 rayon = ["dep:rayon"]
+## Use the `ibig` crate as the arbitrary precision integer arithmethic backend.
+ibig = ["dep:ibig"]
 ## Use the `dashu` crate as the arbitrary precision integer arithmethic backend.
 dashu = ["dep:dashu"]
 ## Use the `malachite` crate as the arbitrary precision integer arithmethic backend.
+## *Warning:* this changes the license to the more restrictive LGPL-3.0-only license.
 malachite = ["malachite-nz", "malachite-base"]
 ## Use the `num_bigint` crate as the arbitrary precision integer arithmethic backend.
 num_bigint = ["dep:num-bigint"]

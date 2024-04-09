@@ -4,6 +4,8 @@
 #[cfg(feature = "dashu")]
 use dashu::Integer;
 use glam::{DMat3, DMat4, DVec3, DVec4};
+#[cfg(feature = "ibig")]
+use ibig::IBig as Integer;
 #[cfg(feature = "malachite")]
 use malachite_base::num::arithmetic::traits::Sign;
 #[cfg(feature = "malachite")]
@@ -289,7 +291,7 @@ pub(crate) fn in_sphere_test_exact(a: &[i64], b: &[i64], c: &[i64], d: &[i64], v
     big_int_det3x3!(b[0], b[1], b[2], c[0], c[1], c[2], d[0], d[1], d[2], tmp1, det);
     determinant -= &v[3] * &det;
 
-    #[cfg(any(feature = "dashu", feature = "rug"))]
+    #[cfg(any(feature = "dashu", feature = "ibig", feature = "rug"))]
     let result = determinant.signum().to_f64();
     #[cfg(feature = "dashu")]
     let result = result.value();

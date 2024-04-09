@@ -71,4 +71,8 @@ It should be noted that this backend requires a C compiler to build and hence ha
 
 ## License
 
-Apache-2.0 OR MIT at your option when using the default (`num_bigint`) backend OR LGPL-3.0+ (`rug` backend).
+Licensed under:
+ - [Apache-2.0](www.apache.org/licenses/LICENSE-2.0) OR [MIT](https://opensource.org/license/MIT) at your option when 
+   using the `ibig`, `dashu` or `num_bigint` arbitrary precision arithmetic backends.
+ - [LGPL-3.0-only](https://www.gnu.org/licenses/lgpl-3.0.html) when using the `malachite` backend
+ - [LGPL-3.0+](https://www.gnu.org/licenses/lgpl-3.0.html) when using the `rug` backend.

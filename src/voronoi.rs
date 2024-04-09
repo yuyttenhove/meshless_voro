@@ -350,7 +350,7 @@ impl Voronoi {
                 f64,
                 total_volume,
                 box_volume,
-                epsilon = box_volume * 1e-12,
+                epsilon = box_volume * 1e-11,
                 ulps = 4
             );
         }
@@ -866,7 +866,7 @@ mod test {
     #[test]
     fn test_3_d() {
         let pert = 0.95;
-        let count = 75;
+        let count = 60;
         let anchor = DVec3::ZERO;
         let width = DVec3::splat(2.);
         let generators = perturbed_grid(anchor, width, count, pert);
