@@ -40,30 +40,27 @@
 //!
 //! # Integer Arithmetic Backend
 //!
-//! You can select from five backends for arbitrary precision integer arithmetic.
-//! These all provide identical functionality and vary only in performance and licensing.
+//! You can select from five backends for arbitrary precision integer
+//! arithmetic. These all provide identical functionality and vary only in
+//! performance and licensing.
 //!
-//! For most practical applications, the choice of backend does not significantly alter
-//! performance. However, for highly degenerate seed configurations - i.e. with many groups of more
-//! than 4 (almost) co-spherical seed points - many arbitrary precision arithmetic tests must be
-//! performed leading to some performance differences in such cases.
+//! For most practical applications, the choice of backend does not
+//! significantly alter performance. However, for highly degenerate seed
+//! configurations -- i.e. with many groups of more than four (almost)
+//! co-spherical seed points -- many arbitrary precision arithmetic tests must
+//! be performed leading to some performance differences in such cases.
 //!
-//! - [`ibig`](https://crates.io/crates/ibig) (MIT/Apache 2.0): This is the default backend.
-//!   It generally has good performance, but can be up to 40% slower than the `rug` backend for
-//!   highly degenerate seed configurations.
+//! Benchmarks for construction of a Voronoi grid with 35³ seeds (single
+//! threaded):
 //!
-//! - [`dashu`](https://crates.io/crates/dashu) (MIT/Apache 2.0): Similar performance to the `ibig`
-//!   backend.
+//! |              | Perfect grid      | Perturbed grid     |
+//! | ------------ | ----------------- | ------------------ |
+//! | `rug`        | 1.129 s ± 0.011 s | 705.9 ms ± 9.7 ms  |
+//! | `malachite`  | 1.477 s ± 0.070 s | 702.8 ms ± 9.0 ms  |
+//! | `dashu`      | 1.731 s ± 0.037 s | 735.6 ms ± 10.3 ms |
+//! | `num-bigint` | 2.249 s ± 0.125 s | 695.2 ms ± 6.8 ms  |
 //!
-//! - [`num_bigint`](https://crates.io/crates/num-bigint) (MIT/Apache 2.0): Worst performance for
-//!   degenerate seed configurations (measured up to 109% slower than `rug`)
-//!
-//! - [`malachite`](https://crates.io/crates/malachite) (LGPL-3.0-only): Slightly faster than the
-//!   `dashu` backend (up to 30% slower than `rug`).
-//!
-//! - [`rug`](https://crates.io/crates/rug) (LGPL-3.0+): The fastest backend, but depends on GNU GMP
-//!   via the `gmp-mpfr-sys` crate which requires a C compiler to build and hence has the slowest
-//!   build time.
+//! See the next section for details.
 //!
 //! # Cargo Features
 #![doc = document_features::document_features!()]
