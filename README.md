@@ -94,7 +94,7 @@ See the next section for details.
   *Warning:* this changes the license to the more restrictive LGPL-3.0+ license.
   The fastest backend, but depends on GNU GMP via the `gmp-mpfr-sys` crate which
   requires a C compiler to build and hence has the slowest build time.
-- `hdf5` -- Allow saving Voronoi grids to
+- `hdf5` -- Allow saving Voronoi grids to [HDF5 format](https://en.wikipedia.org/wiki/Hierarchical_Data_Format#HDF5).
 
 ## License
 
