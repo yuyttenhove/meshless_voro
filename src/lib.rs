@@ -102,4 +102,6 @@ mod space;
 mod util;
 mod voronoi;
 
-pub use voronoi::{integrals, ConvexCell, Voronoi, VoronoiCell, VoronoiFace, VoronoiIntegrator};
+pub use voronoi::{
+    integrals, ConvexCell, Dimensionality, Voronoi, VoronoiCell, VoronoiFace, VoronoiIntegrator,
+};

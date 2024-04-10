@@ -26,7 +26,7 @@ mod voronoi_cell;
 mod voronoi_face;
 
 /// The dimensionality of the Voronoi tessellation.
-#[derive(Clone, Copy, Debug, PartialEq, num_enum::IntoPrimitive)]
+#[derive(Clone, Copy, Debug, PartialEq, num_enum::IntoPrimitive, num_enum::TryFromPrimitive)]
 #[repr(usize)]
 pub enum Dimensionality {
     OneD = 1,
@@ -604,7 +604,7 @@ impl VoronoiIntegrator {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::{
         integrals::{AreaCentroidIntegrator, VolumeCentroidIntegrator},
         *,
