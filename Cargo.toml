@@ -31,8 +31,8 @@ default = ["ibig", "rayon"]
 rayon = ["dep:rayon"]
 ## Use the `ibig` crate (MIT/Apache 2.0) as the arbitrary precision integer
 ## arithmetic backend.
-## It generally has good performance, but can be up to 40% slower than the
-## `rug` backend for highly degenerate seed configurations.
+## It generally has good performance, but can be up to 50% slower than the
+## `rug` backend for highly degenerate seed configurations (e.g. a perfect grid).
 ibig = ["dep:ibig"]
 ## Use the `dashu` crate (MIT/Apache 2.0) as the arbitrary precision integer
 ## arithmetic backend.
@@ -41,11 +41,11 @@ dashu = ["dep:dashu"]
 ## Use the `malachite` crate as the arbitrary precision integer arithmetic backend.
 ## *Warning:* this changes the license to the more restrictive LGPL-3.0-only
 ## license.
-## Slightly faster than the `dashu` backend (up to 30% slower than `rug`).
+## Slightly faster than the `dashu` backend (up to 40% slower than `rug`).
 malachite = ["malachite-nz", "malachite-base"]
 ## Use the `num_bigint` crate (MIT/Apache 2.0) as the arbitrary precision
 ## integer arithmetic backend.
-## Worst performance for degenerate seed configurations (measured up to 109%
+## Worst performance for degenerate seed configurations (measured up to 140%
 ## slower than `rug`).
 num_bigint = ["dep:num-bigint"]
 ## Use the `rug` crate as arbitrary precision integer arithmetic backend.

@@ -48,31 +48,34 @@ arithmetic. These all provide identical functionality and vary only in
 performance and licensing.
 
 For most practical applications, the choice of backend does not
-significantly alter performance. However, for highly degenerate seed
-configurations -- i.e. with many groups of more than four (almost)
-co-spherical seed points -- many arbitrary precision arithmetic tests must
-be performed leading to some performance differences in such cases.
+significantly alter performance (see results for a perturbed grid below).
+However, for highly degenerate seed configurations -- i.e. with many groups
+of more than four (almost) co-spherical seed points -- many arbitrary precision
+arithmetic tests must be performed leading to some performance differences
+in such cases (see results for a perfect grid below).
 
-Benchmarks for construction of a Voronoi grid with 35³ seeds (single
-threaded):
+Benchmarks for construction of a 3D Voronoi grid with 64³ seeds:
 
-|              | Perfect grid      | Perturbed grid     |
-| ------------ | ----------------- | ------------------ |
-| `rug`        | 1.129 s ± 0.011 s | 705.9 ms ± 9.7 ms  |
-| `malachite`  | 1.477 s ± 0.070 s | 702.8 ms ± 9.0 ms  |
-| `dashu`      | 1.731 s ± 0.037 s | 735.6 ms ± 10.3 ms |
-| `num-bigint` | 2.249 s ± 0.125 s | 695.2 ms ± 6.8 ms  |
+|              | Perfect grid      | Perturbed grid    |
+| ------------ | ----------------- | ----------------- |
+| `rug`        | 2.062 s ± 0.005 s | 1.308 s ± 0.008 s |
+| `malachite`  | 2.846 s ± 0.016 s | 1.293 s ± 0.005 s |
+| `ibig`       | 3.105 s ± 0.048 s | 1.320 s ± 0.022 s |
+| `dashu`      | 3.249 s ± 0.091 s | 1.313 s ± 0.009 s |
+| `num-bigint` | 4.852 s ± 0.078 s | 1.301 s ± 0.004 s |
 
 See the next section for details.
 
 ## Cargo Features
+
+**Note**: the features for choosing a backend are all *mutually exclusive*.
 
 <!-- cargo-rdme end -->
 
 - `rayon` -- Enable parallel construction of the Voronoi grid.
 - `ibig` -- Use the `ibig` crate (MIT/Apache 2.0) as the arbitrary precision
   integer arithmetic backend.
-  It generally has good performance, but can be up to 40% slower than the
+  It generally has good performance, but can be up to 50% slower than the
   `rug` backend for highly degenerate seed configurations.
 - `dashu` -- Use the `dashu` crate (MIT/Apache 2.0) as the arbitrary precision
   integer arithmetic backend.
@@ -81,10 +84,10 @@ See the next section for details.
   arithmetic backend.
   *Warning:* this changes the license to the more restrictive LGPL-3.0-only
   license.
-  Slightly faster than the `dashu` backend (up to 30% slower than `rug`).
+  Slightly faster than the `dashu` backend (up to 40% slower than `rug`).
 - `num_bigint` -- Use the `num_bigint` crate (MIT/Apache 2.0) as the arbitrary
   precision integer arithmetic backend.
-  Worst performance for degenerate seed configurations (measured up to 109%
+  Worst performance for degenerate seed configurations (measured up to 140%
   slower than `rug`).
 - `rug` -- Use the `rug` crate as arbitrary precision integer arithmetic
   backend.
