@@ -352,7 +352,7 @@ impl Aabb {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use glam::DVec3;
 
     use crate::geometry::{signed_area_tri, signed_volume_tet};

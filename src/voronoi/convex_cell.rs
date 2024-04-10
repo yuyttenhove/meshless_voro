@@ -474,7 +474,7 @@ impl From<ConvexCellAlternative> for ConvexCell {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
 
     #[test]

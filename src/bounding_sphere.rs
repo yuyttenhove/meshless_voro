@@ -154,7 +154,7 @@ impl BoundingSphereSolver for Epos6 {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use glam::DVec3;
 
     use super::{BoundingSphereSolver, Epos6, Welzl};

@@ -101,7 +101,7 @@ impl<'a> Iterator for SimpleCycle2Iterator<'a> {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use crate::simple_cycle::SimpleCycle;
 
     #[test]

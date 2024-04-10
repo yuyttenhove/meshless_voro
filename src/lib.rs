@@ -40,32 +40,32 @@
 //!
 //! # Integer Arithmetic Backend
 //!
-//! You can select from five backends for arbitrary precision integer arithmetic.
-//! These all provide identical functionality and vary only in performance and licensing.
+//! You can select from five backends for arbitrary precision integer
+//! arithmetic. These all provide identical functionality and vary only in
+//! performance and licensing.
 //!
-//! For most practical applications, the choice of backend does not significantly alter
-//! performance. However, for highly degenerate seed configurations - i.e. with many groups of more
-//! than 4 (almost) co-spherical seed points - many arbitrary precision arithmetic tests must be
-//! performed leading to some performance differences in such cases.
+//! For most practical applications, the choice of backend does not
+//! significantly alter performance (see results for a perturbed grid below).
+//! However, for highly degenerate seed configurations -- i.e. with many groups
+//! of more than four (almost) co-spherical seed points -- many arbitrary precision
+//! arithmetic tests must be performed leading to some performance differences
+//! in such cases (see results for a perfect grid below).
 //!
-//! - [`ibig`](https://crates.io/crates/ibig) (MIT/Apache 2.0): This is the default backend.
-//!   It generally has good performance, but can be up to 40% slower than the `rug` backend for
-//!   highly degenerate seed configurations.
+//! Benchmarks for construction of a 3D Voronoi grid with 64³ seeds:
 //!
-//! - [`dashu`](https://crates.io/crates/dashu) (MIT/Apache 2.0): Similar performance to the `ibig`
-//!   backend.
+//! |              | Perfect grid      | Perturbed grid    |
+//! | ------------ | ----------------- | ----------------- |
+//! | `rug`        | 2.062 s ± 0.005 s | 1.308 s ± 0.008 s |
+//! | `malachite`  | 2.846 s ± 0.016 s | 1.293 s ± 0.005 s |
+//! | `ibig`       | 3.105 s ± 0.048 s | 1.320 s ± 0.022 s |
+//! | `dashu`      | 3.249 s ± 0.091 s | 1.313 s ± 0.009 s |
+//! | `num-bigint` | 4.852 s ± 0.078 s | 1.301 s ± 0.004 s |
 //!
-//! - [`num_bigint`](https://crates.io/crates/num-bigint) (MIT/Apache 2.0): Worst performance for
-//!   degenerate seed configurations (measured up to 109% slower than `rug`)
-//!
-//! - [`malachite`](https://crates.io/crates/malachite) (LGPL-3.0-only): Slightly faster than the
-//!   `dashu` backend (up to 30% slower than `rug`).
-//!
-//! - [`rug`](https://crates.io/crates/rug) (LGPL-3.0+): The fastest backend, but depends on GNU GMP
-//!   via the `gmp-mpfr-sys` crate which requires a C compiler to build and hence has the slowest
-//!   build time.
+//! See the next section for details.
 //!
 //! # Cargo Features
+//!
+//! **Note**: the features for choosing a backend are all *mutually exclusive*.
 #![doc = document_features::document_features!()]
 
 #[cfg(any(
@@ -102,4 +102,6 @@ mod space;
 mod util;
 mod voronoi;
 
-pub use voronoi::{integrals, ConvexCell, Voronoi, VoronoiCell, VoronoiFace, VoronoiIntegrator};
+pub use voronoi::{
+    integrals, ConvexCell, Dimensionality, Voronoi, VoronoiCell, VoronoiFace, VoronoiIntegrator,
+};

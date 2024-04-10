@@ -44,7 +44,7 @@ impl<T> GetMutMultiple for Vec<T> {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
 
     #[test]
