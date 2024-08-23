@@ -58,7 +58,7 @@ pub struct VoronoiFace {
 }
 
 impl VoronoiFace {
-    pub(super) fn new(
+    pub fn new(
         left: usize,
         right: Option<usize>,
         area: f64,
