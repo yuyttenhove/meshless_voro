@@ -26,11 +26,12 @@ mod voronoi_cell;
 mod voronoi_face;
 
 /// The dimensionality of the Voronoi tessellation.
-#[derive(Clone, Copy, Debug, PartialEq, num_enum::IntoPrimitive, num_enum::TryFromPrimitive)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, num_enum::IntoPrimitive, num_enum::TryFromPrimitive)]
 #[repr(usize)]
 pub enum Dimensionality {
     OneD = 1,
     TwoD = 2,
+    #[default]
     ThreeD = 3,
 }
 
