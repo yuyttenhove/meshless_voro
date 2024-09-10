@@ -17,10 +17,12 @@ impl HalfSpace {
     const EPSILON: f64 = 1e-13;
 
     pub fn new(n: DVec3, p: DVec3, right_idx: Option<usize>, shift: Option<DVec3>) -> Self {
+        let errb = Self::EPSILON * (1. + n.abs().dot(p.abs()));
+        assert!(errb > 0., "Trying to construct halfspace with errorbound 0!");
         HalfSpace {
             plane: Plane::new(n, p),
             d: n.dot(p),
-            errb: Self::EPSILON * n.abs().dot(p.abs()),
+            errb,
             right_idx,
             shift,
         }
