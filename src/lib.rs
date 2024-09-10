@@ -90,6 +90,7 @@
 ))]
 compile_error!("Multiple arbitrary precision arithmetic backends enabled!");
 
+#[allow(dead_code)]
 mod bounding_sphere;
 pub mod geometry;
 mod part;
@@ -99,6 +100,7 @@ mod simple_cycle;
 // implementation
 #[allow(dead_code)]
 mod space;
+#[allow(dead_code)]
 mod util;
 mod voronoi;
 
