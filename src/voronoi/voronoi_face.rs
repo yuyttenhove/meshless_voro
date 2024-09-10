@@ -58,7 +58,7 @@ pub struct VoronoiFace {
 }
 
 impl VoronoiFace {
-    pub fn new(
+    fn new(
         left: usize,
         right: Option<usize>,
         area: f64,
@@ -88,6 +88,16 @@ impl VoronoiFace {
         self.right
     }
 
+    /// Update the index of the generator on the _left_ of this face.
+    pub fn set_left(&mut self, left: usize) {
+        self.left = left;
+    }
+
+    /// Update the index of the generator on the _right_ of this face.
+    pub fn set_right(&mut self, right: usize) {
+        self.right = Some(right);
+    }
+
     /// Get the area of this face.
     pub fn area(&self) -> f64 {
         self.area
@@ -111,9 +121,15 @@ impl VoronoiFace {
         self.shift
     }
 
+    /// Update the shift vector associated with this face
+    pub fn set_shift(&mut self, shift: DVec3) {
+        self.shift = Some(shift)
+    }
+
     /// Whether this is a face between a particle and a periodic boundary neighbour
     pub fn is_periodic(&self) -> bool {
-        self.shift.is_none()
+        // Periodically wrapping faces must have shift set
+        self.shift.is_some()
     }
 
     /// Whether this is a boundary face
