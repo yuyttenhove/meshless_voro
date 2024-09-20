@@ -360,8 +360,12 @@ impl ConvexCell {
 
         // Find the first vertex containing the current plane
         let mut cur_idx = 0;
-        while !self.vertices[cur_idx].dual.contains(&face_idx) {
+        while cur_idx < self.vertices.len() && !self.vertices[cur_idx].dual.contains(&face_idx) {
             cur_idx += 1;
+        }
+        if cur_idx == self.vertices.len() {
+            // No vertices for this face (non existant face).
+            return vertices;
         }
         let first_idx = cur_idx;
         vertices.push(cur_idx);
