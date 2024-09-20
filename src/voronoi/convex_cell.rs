@@ -10,20 +10,16 @@ use crate::{
 use glam::DVec3;
 
 /// A vertex of a [`ConvexCell`].
-///
-/// Stores:
-///
-/// - The location of the vertex.
-///
-/// - Its dual representation: the indices of the three half spaces that
-///   intersect at the vertex (in counterclockwise order around the vertex).
-///
-/// - The safety radius for this vertex.
 #[derive(Clone, Debug)]
-pub(super) struct Vertex {
+pub struct Vertex {
+    /// The location of the [`Vertex`] (in global coordinates).
     pub loc: DVec3,
+    /// The dual representation: the indices of the three half spaces in the corresponding 
+    /// vector in the [`ConvexCell`], that intersect at this [`Vertex`] (in counterclockwise 
+    /// order around the vertex).
     pub dual: [usize; 3],
-    pub radius2: f64,
+    /// The safety radius of this vertex.
+    pub (super) radius2: f64,
 }
 
 impl Vertex {
@@ -147,21 +143,23 @@ impl Iterator for ConvexCellDecomposition<'_> {
 }
 
 /// Meshless representation of a Voronoi cell as an intersection of
-/// half-spaces.
+/// [`HalfSpace`]s.
 ///
-/// Can be used to compute integrated cell and face quantities.
+/// Can be used to compute integrated cell and face quantities. 
+/// In this representation, the vertices of the Voronoi cell are also available.
 #[derive(Clone, Debug)]
 pub struct ConvexCell {
-    /// The location of the generator of this `ConvexCell`/`VoronoiCell`.
+    /// The index (label) of the generator of this [`ConvexCell`]
+    pub idx: usize,
+    /// The location of the generator of this [`ConvexCell`].
     pub loc: DVec3,
-    /// [`Halfspace`]s that intersect to form this `ConvexCell`. Their normals
+    /// [`HalfSpace`]s that intersect to form this [`ConvexCell`]. Their normals
     /// are pointed inwards.
-    pub(super) clipping_planes: Vec<HalfSpace>,
-    pub(super) vertices: Vec<Vertex>,
+    pub clipping_planes: Vec<HalfSpace>,
+    /// The vertices of this cell (in global coordinates).
+    pub vertices: Vec<Vertex>,
     boundary: SimpleCycle,
     pub(super) safety_radius: f64,
-    /// The index (label) of the generator of this `ConvexCell`/`VoronoiCell`
-    pub idx: usize,
     pub(super) dimensionality: Dimensionality,
 }
 
@@ -356,6 +354,51 @@ impl ConvexCell {
         self.clipping_planes[clipping_plane_idx].plane.clone()
     }
 
+    /// Get the indices of the vertices of the specified face, in counterclockwise order.
+    pub fn get_face_vertices(&self, face_idx: usize) -> Vec<usize> {
+        let mut vertices = vec![];
+
+        // Find the first vertex containing the current plane
+        let mut cur_idx = 0;
+        while !self.vertices[cur_idx].dual.contains(&face_idx) {
+            cur_idx += 1;
+        }
+        let first_idx = cur_idx;
+        vertices.push(cur_idx);
+
+        // loop through the vertices to find the next vertex containing 
+        let mut next_idx = self.find_next_vertex_containing(face_idx, cur_idx);
+        while next_idx != first_idx {
+            vertices.push(next_idx);
+            debug_assert!(vertices.len() <= self.vertices.len(), "A face cannot have more vertices than a cell!");
+            cur_idx = next_idx;
+            next_idx = self.find_next_vertex_containing(face_idx, cur_idx);
+        }
+
+        vertices
+    }
+
+    fn find_next_vertex_containing(&self, plane_idx: usize, cur_idx: usize) -> usize {
+        let cur_v = &self.vertices[cur_idx];
+        let mut p_idx_in_cur_idx = 0;
+        while cur_v.dual[p_idx_in_cur_idx] != plane_idx {
+            p_idx_in_cur_idx += 1;
+            assert!(p_idx_in_cur_idx < 3);
+        }
+        // Get the other plane contained in the next vertex
+        let next_plane = cur_v.dual[(p_idx_in_cur_idx + 2) % 3];
+        // Find the single other vertex containing both planes
+        for (i, v) in self.vertices.iter().enumerate() {
+            if i == cur_idx {
+                continue;
+            }
+            if v.dual.contains(&plane_idx) && v.dual.contains(&next_plane) {
+                return i;
+            }
+        }
+        unreachable!("Should always find a next vertex of a face!");
+    }
+
     /// Compute a custom integrated quantity for this cell.
     pub fn compute_cell_integral<D: Copy, T: CellIntegralWithData<D>>(&self, extra_data: D) -> T {
         // Compute integral from decomposition of convex cell
@@ -507,5 +550,23 @@ mod tests {
         cell.clip_by_plane(HalfSpace::new(n, p, Some(1), Some(DVec3::ZERO)), &generators, &volume);
 
         assert_eq!(cell.clipping_planes.len(), 7)
+    }
+
+    #[test]
+    fn test_get_face_vertices_cuboid() {
+        let anchor = DVec3::splat(1.);
+        let width = DVec3::splat(2.);
+        let loc = DVec3::splat(2.);
+        let volume = SimulationBoundary::cuboid(anchor, width, false, Dimensionality::ThreeD.into());
+        let cell = ConvexCell::init(loc, 0, &volume);
+
+        for i in 0..6 {
+            let face_vertices = cell.get_face_vertices(i);
+            assert!(face_vertices.len() == 4);
+            for vi in &face_vertices {
+                assert!(cell.vertices[*vi].dual.contains(&i));
+                assert!(face_vertices.iter().filter(|&vj| *vi == *vj).count() == 1);
+            }
+        }
     }
 }

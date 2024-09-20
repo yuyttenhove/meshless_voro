@@ -4,12 +4,17 @@ use crate::geometry::Plane;
 
 use super::Generator;
 
+/// Oriented half-space. Voronoi cells are constructed as the intersection of [`HalfSpace`]s
 #[derive(Clone, Debug)]
-pub(super) struct HalfSpace {
+pub struct HalfSpace {
+    /// The plane dividing space in two halves.
     pub plane: Plane,
     d: f64,
     errb: f64,
+    /// The index of the generator outside of this halfspace. 
+    /// May be `None` if this is a boundary face (when using reflective boundary conditions). 
     pub right_idx: Option<usize>,
+    /// Shift to apply to the neighbouring generators position (only in case of periodic boundary conditions).
     pub shift: Option<DVec3>,
 }
 
