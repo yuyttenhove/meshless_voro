@@ -20,7 +20,9 @@ use std::cmp::Ordering;
 /// A simple plane struct.
 #[derive(Clone, Debug)]
 pub struct Plane {
+    /// Normal vector
     pub n: DVec3,
+    /// Point on the plane
     pub p: DVec3,
 }
 
