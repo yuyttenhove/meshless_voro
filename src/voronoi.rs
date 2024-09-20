@@ -16,11 +16,11 @@ pub use voronoi_cell::VoronoiCell;
 pub use voronoi_face::VoronoiFace;
 
 mod boundary;
-mod convex_cell;
+pub mod convex_cell;
 #[allow(unused)]
 mod convex_cell_alternative;
 mod generator;
-mod half_space;
+pub mod half_space;
 pub mod integrals;
 mod voronoi_cell;
 mod voronoi_face;
@@ -446,7 +446,7 @@ impl From<VoronoiIntegrator> for Voronoi {
 /// An intermediate (meshless) representation of the Voronoi mesh.
 ///
 /// Can be used to compute integrals over the faces (e.g. area, solid angle,
-/// ...) or cells ((weighted) centroid, ...). Can also be converted to a Voronoi
+/// ...) or cells ((weighted) centroid, ...). Can also be converted to a [`Voronoi`]
 /// struct, which implements the `From<VoronoiIntegrator>` trait.
 pub struct VoronoiIntegrator {
     cells: Vec<Option<ConvexCell>>,
@@ -457,10 +457,10 @@ pub struct VoronoiIntegrator {
 }
 
 impl VoronoiIntegrator {
-    /// Build the `ConvexCell`s for the given generators.
+    /// Build the [`ConvexCell`]s for the given generators.
     ///
     /// * `generators` - The seed points of the Voronoi cells.
-    /// * `mask` - (Optional) `True` for Voronoi cells which have to be fully
+    /// * `mask` - (Optional) `True` for generators whose corresponding cells have to be
     ///   constructed.
     /// * `anchor` - The lower left corner of the simulation volume.
     /// * `width` - The width of the simulation volume. Also determines the
@@ -535,6 +535,25 @@ impl VoronoiIntegrator {
             dimensionality,
             periodic,
         }
+    }
+
+    /// Get the [`ConvexCell`] at the specified index, if any.
+    /// 
+    /// When using partial construction, no [`ConvexCell`] is constructed for some generators, 
+    /// in which case this function will return None.
+    /// 
+    /// * `index` - The index of the generator whose corresponding [`ConvexCell`] to retrieve.
+    pub fn get_cell_at(&self, index: usize) -> Option<&ConvexCell> {
+        self.cells[index].as_ref()
+    }
+
+    /// Get an iterator over all the [`ConvexCell`]s. 
+    /// 
+    /// This iterator is already filtered in the case of partial construction. 
+    /// The index of the generator corresponding with a [`ConvexCell`] from the iterator 
+    /// must be retrieved from its `idx` field.
+    pub fn cells_iter(&self) -> impl Iterator<Item = &ConvexCell> {
+        self.cells.iter().filter_map(|cell| cell.as_ref())
     }
 
     /// Compute a custom cell integral for the active cells in this
