@@ -1,6 +1,7 @@
 use self::integrals::{CellIntegral, CellIntegralWithData, FaceIntegral, FaceIntegralWithData};
 use crate::rtree_nn::{build_rtree, nn_iter, wrapping_nn_iter};
 
+use convex_cell::{ConvexCellMarker, WithFaces, WithoutFaces};
 use glam::DVec3;
 #[cfg(feature = "rayon")]
 use rayon::prelude::*;
@@ -74,6 +75,7 @@ macro_rules! cells_map {
 ///
 /// This representation has pre-calculated faces (area, normal, centroid) and
 /// cells (volume, centroid).
+#[derive(Clone)]
 pub struct Voronoi {
     anchor: DVec3,
     width: DVec3,
@@ -422,8 +424,8 @@ impl Voronoi {
     }
 }
 
-impl From<VoronoiIntegrator> for Voronoi {
-    fn from(voronoi_integrator: VoronoiIntegrator) -> Self {
+impl<T: ConvexCellMarker> From<&VoronoiIntegrator<T>> for Voronoi {
+    fn from(voronoi_integrator: &VoronoiIntegrator<T>) -> Self {
         let mut faces = vec![vec![]; voronoi_integrator.cells.len()];
         let voronoi_cells = voronoi_integrator.build_voronoi_cells(&mut faces);
 
@@ -448,15 +450,16 @@ impl From<VoronoiIntegrator> for Voronoi {
 /// Can be used to compute integrals over the faces (e.g. area, solid angle,
 /// ...) or cells ((weighted) centroid, ...). Can also be converted to a [`Voronoi`]
 /// struct, which implements the `From<VoronoiIntegrator>` trait.
-pub struct VoronoiIntegrator {
-    cells: Vec<Option<ConvexCell>>,
+#[derive(Clone)]
+pub struct VoronoiIntegrator<Marker: ConvexCellMarker> {
+    cells: Vec<Option<ConvexCell<Marker>>>,
     anchor: DVec3,
     width: DVec3,
     dimensionality: Dimensionality,
     periodic: bool,
 }
 
-impl VoronoiIntegrator {
+impl VoronoiIntegrator<WithoutFaces> {
     /// Build the [`ConvexCell`]s for the given generators.
     ///
     /// * `generators` - The seed points of the Voronoi cells.
@@ -537,13 +540,35 @@ impl VoronoiIntegrator {
         }
     }
 
+    /// Convert this [`VoronoiIntegrator`]'s [`ConvexCell`]s into ones with face information stored. 
+    /// 
+    /// NOTE: this is only supported for 3D Voronoi meshes, since the underlying 
+    /// representation is always 3D, this method would lead to additional, nonsensical vertices 
+    /// along the extra dimensions in 1D or 2D. The function panics when invoked in 1D or 2D.
+    pub fn with_faces(self) -> VoronoiIntegrator<WithFaces> {
+        #[cfg(feature = "rayon")]
+        let cells_with_faces = self.cells.into_par_iter().map(|cell| cell.map(|cell| cell.with_faces())).collect();
+        #[cfg(not(feature = "rayon"))]
+        let cells_with_faces = self.cells.into_iter().map(|cell| cell.map(|cell| cell.with_faces())).collect();
+        VoronoiIntegrator::<WithFaces> {
+            cells: cells_with_faces,
+            anchor: self.anchor,
+            width: self.width,
+            dimensionality: self.dimensionality, 
+            periodic: self.periodic
+        }
+    }
+}
+
+impl<M: ConvexCellMarker> VoronoiIntegrator<M> {
+
     /// Get the [`ConvexCell`] at the specified index, if any.
     /// 
     /// When using partial construction, no [`ConvexCell`] is constructed for some generators, 
     /// in which case this function will return None.
     /// 
     /// * `index` - The index of the generator whose corresponding [`ConvexCell`] to retrieve.
-    pub fn get_cell_at(&self, index: usize) -> Option<&ConvexCell> {
+    pub fn get_cell_at(&self, index: usize) -> Option<&ConvexCell<M>> {
         self.cells[index].as_ref()
     }
 
@@ -552,7 +577,7 @@ impl VoronoiIntegrator {
     /// This iterator is already filtered in the case of partial construction. 
     /// The index of the generator corresponding with a [`ConvexCell`] from the iterator 
     /// must be retrieved from its `idx` field.
-    pub fn cells_iter(&self) -> impl Iterator<Item = &ConvexCell> {
+    pub fn cells_iter(&self) -> impl Iterator<Item = &ConvexCell<M>> {
         self.cells.iter().filter_map(|cell| cell.as_ref())
     }
 
@@ -603,11 +628,16 @@ impl VoronoiIntegrator {
             .compute_face_integrals_sym(extra_data, &self.active_cells_mask()))
     }
 
-    fn build_voronoi_cells(&self, faces: &mut [Vec<VoronoiFace>]) -> Vec<VoronoiCell> {
-        let build = |(convex_cell, faces): (&Option<ConvexCell>, _)| match convex_cell {
+
+    /// Compute the more compact [`VoronoiCell`]s from the [`ConvexCell`]s of this [`VoronoiIntegrator`]. 
+    /// This also computes the volumes of the cells and the areas of the faces. 
+    /// 
+    /// * `faces` - Mutable slice of vectors to store the faces of each cell (one vector per cell).
+    pub fn build_voronoi_cells(&self, faces: &mut [Vec<VoronoiFace>]) -> Vec<VoronoiCell> {
+        let build = |(convex_cell, faces): (&Option<ConvexCell::<_>>, _)| match convex_cell {
             Some(convex_cell) => {
                 VoronoiCell::from_convex_cell(convex_cell, faces, Some(&self.active_cells_mask()))
-            }
+            } 
             None => VoronoiCell::default(),
         };
         #[cfg(feature = "rayon")]
@@ -990,7 +1020,7 @@ mod tests {
         assert_eq!(volume_centroids[0].volume, voronoi.cells()[62].volume());
         assert_eq!(volume_centroids[0].centroid, voronoi.cells()[62].centroid());
 
-        let voronoi2: Voronoi = integrator.into();
+        let voronoi2: Voronoi = (&integrator).into();
         assert_eq!(voronoi2.anchor, voronoi.anchor);
         assert_eq!(voronoi2.width, voronoi.width);
         assert_eq!(voronoi2.periodic, voronoi.periodic);

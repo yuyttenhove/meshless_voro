@@ -7,7 +7,7 @@ use crate::voronoi::{
 };
 
 use super::{
-    convex_cell::ConvexCell,
+    convex_cell::{ConvexCell, ConvexCellMarker},
     integrals::{CellIntegral, VolumeCentroidIntegrator},
 };
 
@@ -41,8 +41,8 @@ impl VoronoiCell {
     ///
     /// Any Voronoi faces that are created by the construction of this cell are
     /// stored in the `faces` vector.
-    pub(super) fn from_convex_cell<'a>(
-        convex_cell: &'a ConvexCell,
+    pub(super) fn from_convex_cell<'a, Marker: ConvexCellMarker>(
+        convex_cell: &'a ConvexCell<Marker>,
         faces: &mut Vec<VoronoiFace>,
         mask: Option<&[bool]>,
     ) -> Self {

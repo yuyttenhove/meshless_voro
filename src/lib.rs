@@ -102,6 +102,7 @@ mod simple_cycle;
 mod space;
 #[allow(dead_code)]
 mod util;
+#[allow(private_bounds)]
 mod voronoi;
 
 pub use voronoi::{

@@ -4,7 +4,7 @@ use glam::DVec3;
 
 use crate::geometry::{signed_area_tri, signed_volume_tet};
 
-use super::convex_cell::ConvexCell;
+use super::convex_cell::{ConvexCell, ConvexCellMarker};
 
 /// Trait to implement new integrators for Voronoi cells.
 ///
@@ -23,7 +23,7 @@ use super::convex_cell::ConvexCell;
 ///   that is not fully contained within the Voronoi cell.
 pub trait CellIntegral: Sized {
     /// Initialize a [`CellIntegral`] for the given [`ConvexCell`].
-    fn init(cell: &ConvexCell) -> Self;
+    fn init<M: ConvexCellMarker>(cell: &ConvexCell<M>) -> Self;
 
     /// Update the state of the integrator using one oriented tetrahedron (with
     /// the cell's generator `gen` as top), which is part of a cell.
@@ -37,11 +37,11 @@ pub trait CellIntegral: Sized {
 /// calculation.
 pub trait CellIntegralWithData<D: Copy>: CellIntegral {
     /// Initialize a [`CellIntegral`] with some extra data.
-    fn init_with_data(cell: &ConvexCell, data: D) -> Self;
+    fn init_with_data<M: ConvexCellMarker>(cell: &ConvexCell<M>, data: D) -> Self;
 }
 
 impl<T: CellIntegral> CellIntegralWithData<()> for T {
-    fn init_with_data(cell: &ConvexCell, _data: ()) -> Self {
+    fn init_with_data<M: ConvexCellMarker>(cell: &ConvexCell<M>, _data: ()) -> Self {
         T::init(cell)
     }
 }
@@ -62,7 +62,7 @@ impl VolumeCentroidIntegrator {
 }
 
 impl CellIntegral for VolumeCentroidIntegrator {
-    fn init(_cell: &ConvexCell) -> Self {
+    fn init<M: ConvexCellMarker>(_cell: &ConvexCell<M>) -> Self {
         Self::default()
     }
 
@@ -91,7 +91,7 @@ pub struct VolumeIntegral {
 }
 
 impl CellIntegral for VolumeIntegral {
-    fn init(_cell: &ConvexCell) -> Self {
+    fn init<M: ConvexCellMarker>(_cell: &ConvexCell<M>) -> Self {
         Self::default()
     }
 
@@ -123,7 +123,7 @@ impl CellIntegral for VolumeIntegral {
 pub trait FaceIntegral: Clone {
     /// Initialize a [`FaceIntegral`] for the given [`ConvexCell`] and
     /// clipping_plane_index.
-    fn init(cell: &ConvexCell, clipping_plane_idx: usize) -> Self;
+    fn init<M: ConvexCellMarker>(cell: &ConvexCell<M>, clipping_plane_idx: usize) -> Self;
 
     /// Update the state of the integrator using one oriented tetrahedron (with
     /// the cell's generator `gen` as top), which is part of a cell.
@@ -137,11 +137,11 @@ pub trait FaceIntegral: Clone {
 /// calculation.
 pub trait FaceIntegralWithData<D: Copy>: FaceIntegral {
     /// Initialize a [`CellIntegral`] with some extra data.
-    fn init_with_data(cell: &ConvexCell, clipping_plane_idx: usize, data: D) -> Self;
+    fn init_with_data<M: ConvexCellMarker>(cell: &ConvexCell<M>, clipping_plane_idx: usize, data: D) -> Self;
 }
 
 impl<T: FaceIntegral> FaceIntegralWithData<()> for T {
-    fn init_with_data(cell: &ConvexCell, clipping_plane_idx: usize, _data: ()) -> Self {
+    fn init_with_data<M: ConvexCellMarker>(cell: &ConvexCell<M>, clipping_plane_idx: usize, _data: ()) -> Self {
         T::init(cell, clipping_plane_idx)
     }
 }
@@ -162,7 +162,7 @@ impl AreaCentroidIntegrator {
 }
 
 impl FaceIntegral for AreaCentroidIntegrator {
-    fn init(_cell: &ConvexCell, _clipping_plane_idx: usize) -> Self {
+    fn init<M: ConvexCellMarker>(_cell: &ConvexCell<M>, _clipping_plane_idx: usize) -> Self {
         Self::default()
     }
 
@@ -190,7 +190,7 @@ pub struct AreaIntegral {
 }
 
 impl CellIntegral for AreaIntegral {
-    fn init(_cell: &ConvexCell) -> Self {
+    fn init<M: ConvexCellMarker>(_cell: &ConvexCell<M>) -> Self {
         Self { area: 0. }
     }
 
