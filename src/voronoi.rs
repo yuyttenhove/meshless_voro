@@ -3,6 +3,7 @@ use crate::rtree_nn::{build_rtree, nn_iter, wrapping_nn_iter};
 
 use convex_cell::{ConvexCellMarker, WithFaces, WithoutFaces};
 use glam::DVec3;
+use integrals::FaceIntegrator;
 #[cfg(feature = "rayon")]
 use rayon::prelude::*;
 #[cfg(feature = "hdf5")]
@@ -78,6 +79,28 @@ macro_rules! cells_map_par {
         $cells
             .par_iter()
             .filter_map(|maybe_cell| maybe_cell.as_ref().map($mappable))
+            .collect()
+    };
+}
+
+#[allow(unused_macros)]
+macro_rules! cells_map_flatten {
+    ($cells:expr, $mappable:expr) => {
+        $cells
+            .iter()
+            .filter_map(|maybe_cell| maybe_cell.as_ref().map($mappable))
+            .flatten()
+            .collect()
+    };
+}
+
+#[allow(unused_macros)]
+macro_rules! cells_map_flatten_par {
+    ($cells:expr, $mappable:expr) => {
+        $cells
+            .par_iter()
+            .filter_map(|maybe_cell| maybe_cell.as_ref().map($mappable))
+            .flatten()
             .collect()
     };
 }
@@ -594,19 +617,19 @@ impl<M: ConvexCellMarker + 'static> VoronoiIntegrator<M> {
 
     /// Compute a custom cell integral for the active cells in this
     /// representation.
-    pub fn compute_cell_integrals<T: CellIntegral>(&self) -> Vec<T> {
+    pub fn compute_cell_integrals<I: CellIntegral>(&self) -> Vec<I> {
         #[cfg(feature = "rayon")]
-        return cells_map_par!(self.cells, |cell| cell.compute_cell_integral(()));
+        return cells_map_par!(self.cells, |cell| cell.compute_cell_integral::<(), I>(()));
         #[cfg(not(feature = "rayon"))]
         cells_map!(self.cells, |cell| cell.compute_cell_integral(()))
     }
 
-    pub fn compute_cell_integrals_with_data<D: Copy + Sync, T: CellIntegralWithData<D>>(
+    pub fn compute_cell_integrals_with_data<D: Copy + Sync, I: CellIntegralWithData<Data = D>>(
         &self,
         extra_data: D,
-    ) -> Vec<T> {
+    ) -> Vec<I> {
         #[cfg(feature = "rayon")]
-        return cells_map_par!(self.cells, |cell| cell.compute_cell_integral(extra_data));
+        return cells_map_par!(self.cells, |cell| cell.compute_cell_integral::<D, I>(extra_data));
         #[cfg(not(feature = "rayon"))]
         cells_map!(self.cells, |cell| cell.compute_cell_integral(extra_data))
     }
@@ -621,41 +644,41 @@ impl<M: ConvexCellMarker + 'static> VoronoiIntegrator<M> {
     /// efficient.
     ///
     /// Returns a vector with for each active cell a vector of face integrals.
-    pub fn compute_face_integrals<T: FaceIntegral>(&self) -> Vec<Vec<T>> {
+    pub fn compute_face_integrals<I: FaceIntegral>(&self) -> Vec<FaceIntegrator<I>> {
         #[cfg(feature = "rayon")]
-        return cells_map_par!(self.cells, |cell| cell.compute_face_integrals(()));
+        return cells_map_flatten_par!(self.cells, |cell| cell.compute_face_integrals(()));
         #[cfg(not(feature = "rayon"))]
-        cells_map!(self.cells, |cell| cell.compute_face_integrals(()))
+        cells_map_flatten!(self.cells, |cell| cell.compute_face_integrals(()))
     }
 
-    pub fn compute_face_integrals_sym<T: FaceIntegral>(&self) -> Vec<Vec<T>> {
+    pub fn compute_face_integrals_sym<I: FaceIntegral>(&self) -> Vec<FaceIntegrator<I>> {
         #[cfg(feature = "rayon")]
-        return cells_map_par!(self.cells, |cell| cell
+        return cells_map_flatten_par!(self.cells, |cell| cell
             .compute_face_integrals_sym((), &self.active_cells_mask()));
         #[cfg(not(feature = "rayon"))]
-        cells_map!(self.cells, |cell| cell
+        cells_map_flatten!(self.cells, |cell| cell
             .compute_face_integrals_sym((), &self.active_cells_mask()))
     }
 
-    pub fn compute_face_integrals_with_data<D: Copy + Sync, T: FaceIntegralWithData<D>>(
+    pub fn compute_face_integrals_with_data<D: Copy + Sync, I: FaceIntegralWithData<Data = D>>(
         &self,
         extra_data: D,
-    ) -> Vec<Vec<T>> {
+    ) -> Vec<FaceIntegrator<I>> {
         #[cfg(feature = "rayon")]
-        return cells_map_par!(self.cells, |cell| cell.compute_face_integrals(extra_data));
+        return cells_map_flatten_par!(self.cells, |cell| cell.compute_face_integrals(extra_data));
         #[cfg(not(feature = "rayon"))]
-        cells_map!(self.cells, |cell| cell.compute_face_integrals(extra_data))
+        cells_map_flatten!(self.cells, |cell| cell.compute_face_integrals(extra_data))
     }
 
-    pub fn compute_face_integrals_sym_with_data<D: Copy + Sync, T: FaceIntegralWithData<D>>(
+    pub fn compute_face_integrals_sym_with_data<D: Copy + Sync, I: FaceIntegralWithData<Data = D>>(
         &self,
         extra_data: D,
-    ) -> Vec<Vec<T>> {
+    ) -> Vec<FaceIntegrator<I>> {
         #[cfg(feature = "rayon")]
-        return cells_map!(self.cells, |cell| cell
+        return cells_map_flatten_par!(self.cells, |cell| cell
             .compute_face_integrals_sym(extra_data, &self.active_cells_mask()));
         #[cfg(not(feature = "rayon"))]
-        cells_map!(self.cells, |cell| cell
+        cells_map_flatten!(self.cells, |cell| cell
             .compute_face_integrals_sym(extra_data, &self.active_cells_mask()))
     }
 
@@ -1042,8 +1065,8 @@ mod tests {
         let area_centroids = integrator.compute_face_integrals::<AreaCentroidIntegrator>();
         let volume_centroids = integrator.compute_cell_integrals::<VolumeCentroidIntegrator>();
 
-        assert_eq!(area_centroids.len(), 1);
-        for (i, AreaCentroidIntegrator { area, centroid }) in area_centroids[0].iter().enumerate() {
+        assert_eq!(area_centroids.len(), voronoi.faces().len());
+        for (i, FaceIntegrator { integral: AreaCentroidIntegrator{area, centroid}, ..}) in area_centroids.iter().enumerate() {
             assert_eq!(*area, voronoi.faces()[i].area());
             assert_eq!(*centroid, voronoi.faces()[i].centroid());
         }

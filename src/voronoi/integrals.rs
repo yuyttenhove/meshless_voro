@@ -35,12 +35,16 @@ pub trait CellIntegral: Sized + Send {
 
 /// Trait to implement new integrators that use external data in their
 /// calculation.
-pub trait CellIntegralWithData<D: Copy>: CellIntegral {
+pub trait CellIntegralWithData: CellIntegral {
+    type Data: Copy;
+
     /// Initialize a [`CellIntegral`] with some extra data.
-    fn init_with_data<M: ConvexCellMarker>(cell: &ConvexCell<M>, data: D) -> Self;
+    fn init_with_data<M: ConvexCellMarker>(cell: &ConvexCell<M>, data: Self::Data) -> Self;
 }
 
-impl<T: CellIntegral> CellIntegralWithData<()> for T {
+impl<T: CellIntegral> CellIntegralWithData for T {
+    type Data = ();
+
     fn init_with_data<M: ConvexCellMarker>(cell: &ConvexCell<M>, _data: ()) -> Self {
         T::init(cell)
     }
@@ -135,19 +139,70 @@ pub trait FaceIntegral: Clone + Send {
 
 /// Trait to implement new integrators that use external data in their
 /// calculation.
-pub trait FaceIntegralWithData<D: Copy>: FaceIntegral {
+pub trait FaceIntegralWithData: FaceIntegral {
+    type Data: Copy;
+
     /// Initialize a [`CellIntegral`] with some extra data.
-    fn init_with_data<M: ConvexCellMarker>(cell: &ConvexCell<M>, clipping_plane_idx: usize, data: D) -> Self;
+    fn init_with_data<M: ConvexCellMarker>(cell: &ConvexCell<M>, clipping_plane_idx: usize, data: Self::Data) -> Self;
 }
 
-impl<T: FaceIntegral> FaceIntegralWithData<()> for T {
+impl<T: FaceIntegral> FaceIntegralWithData for T {
+    type Data = ();
+
     fn init_with_data<M: ConvexCellMarker>(cell: &ConvexCell<M>, clipping_plane_idx: usize, _data: ()) -> Self {
         T::init(cell, clipping_plane_idx)
     }
 }
 
+#[derive(Clone)]
+pub struct FaceIntegrator<I: FaceIntegralWithData> {
+    pub(super) left: usize,
+
+    pub(super) right: Option<usize>,
+
+    pub(super) integral: I,
+
+    pub(super) shift: Option<DVec3>,
+}
+
+impl<D: Copy, I: FaceIntegralWithData<Data = D>> FaceIntegrator<I> {
+    pub fn init<M: ConvexCellMarker>(cell: &ConvexCell<M>, clipping_plane_idx: usize, data: D) -> Self {
+        Self {
+            left: cell.idx,
+            right: cell.clipping_planes[clipping_plane_idx].right_idx,
+            integral: I::init_with_data(cell, clipping_plane_idx, data),
+            shift: cell.clipping_planes[clipping_plane_idx].shift,
+        }
+    }
+
+    pub fn collect(&mut self, v0: DVec3, v1: DVec3, v2: DVec3, gen: DVec3) {
+        self.integral.collect(v0, v1, v2, gen);
+    }
+
+    pub fn finalize(mut self) -> Self {
+        self.integral = self.integral.finalize();
+        self
+    }
+    
+    pub fn left(&self) -> &usize {
+        &self.left
+    }
+    
+    pub fn right(&self) -> &Option<usize> {
+        &self.right
+    }
+    
+    pub fn shift(&self) -> &Option<DVec3> {
+        &self.shift
+    }
+    
+    pub fn integral(&self) -> &I {
+        &self.integral
+    }
+}
+
 #[derive(Default, Clone)]
-pub(super) struct AreaCentroidIntegrator {
+pub struct AreaCentroidIntegrator {
     pub centroid: DVec3,
     pub area: f64,
 }

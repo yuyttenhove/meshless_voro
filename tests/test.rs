@@ -122,11 +122,10 @@ pub fn impl_meshless_voro(size: Vec3, points: Vec<Vec3>) -> Vec<VCellRaw> {
     for (volume, volume2) in volumes.iter().zip(volumes2.iter()) {
         assert_approx_eq!(f64, volume.volume, -volume2.volume,  epsilon=1e-10);
     }
-    for (areas, areas2) in areas.iter().zip(areas2.iter()) {
-        assert_eq!(areas.len(), areas2.len());
-        for (area, area2) in areas.iter().zip(areas2.iter()) {
-            assert_approx_eq!(f64, area.area, -area2.area, ulps=16, epsilon=1e-9);
-        }
+    for (area, area2) in areas.iter().zip(areas2.iter()) {
+        assert_eq!(area.left(), area2.left());
+        assert_eq!(area.right(), area2.right());
+        assert_approx_eq!(f64, area.integral().area, -area2.integral().area, epsilon=1e-10)
     }
 
     assert_eq!(_voronoi2.cells().len(), _voronoi3.cells().len());
@@ -135,8 +134,7 @@ pub fn impl_meshless_voro(size: Vec3, points: Vec<Vec3>) -> Vec<VCellRaw> {
         assert_approx_eq!(f64, cell.volume(), -cell2.volume(), epsilon=1e-10);
         assert_approx_eq!(f64, cell.volume(), volumes[i].volume);
         assert_eq!(cell.face_count(), cell2.face_count());
-        assert_eq!(cell.face_count(), areas[i].len());
-        for ((face, face2), area) in cell.faces(&_voronoi2).zip(cell2.faces(&_voronoi3)).zip(areas[i].iter()) {
+        for (face, face2) in cell.faces(&_voronoi2).zip(cell2.faces(&_voronoi3)) {
             // println!("{:}, {:}", face.area(), area.area);
             assert_approx_eq!(f64, face.area(), -face2.area(), epsilon=1e-10);
             // assert_approx_eq!(f64, face.area(), area.area, epsilon=1e-10);
@@ -152,7 +150,7 @@ fn random_point(size: Vec3, rng: &mut StdRng) -> Vec3 {
 
 #[test]
 fn test_extract_vertices() {
-    let count = 4000;
+    let count = 150000;
     let size = Vec3::splat(3.);
     let mut rng = StdRng::seed_from_u64(2);
     let generators = (0..count).map(|_| random_point(size, &mut rng)).collect();

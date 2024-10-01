@@ -2,13 +2,12 @@ use glam::DVec3;
 
 use crate::voronoi::{
     half_space::HalfSpace,
-    voronoi_face::{VoronoiFace, VoronoiFaceBuilder},
+    voronoi_face::VoronoiFace,
     Voronoi,
 };
 
 use super::{
-    convex_cell::{ConvexCell, ConvexCellMarker},
-    integrals::{CellIntegral, VolumeCentroidIntegrator},
+    convex_cell::{ConvexCell, ConvexCellMarker}, integrals::{CellIntegral, VolumeCentroidIntegrator}
 };
 
 /// A Voronoi cell.
@@ -50,13 +49,14 @@ impl VoronoiCell {
         let loc = convex_cell.loc;
         let mut volume_centroid_integral = VolumeCentroidIntegrator::init();
 
-        let mut maybe_faces: Vec<Option<VoronoiFaceBuilder<'a>>> =
+        let mut maybe_faces: Vec<Option<VoronoiFace>> =
             (0..convex_cell.clipping_planes.len()).map(|_| None).collect();
 
         // Helper function to decide which faces should be constucted.
-        let maybe_init_face = |maybe_face: &mut Option<VoronoiFaceBuilder<'a>>,
-                               half_space: &'a HalfSpace| {
+        let maybe_init_face = |maybe_face: &mut Option<VoronoiFace>,
+                               clipping_plane_idx: usize| {
             // Only construct faces for clipping planes of valid dimensionality.
+            let half_space = &convex_cell.clipping_planes[clipping_plane_idx];
             let should_construct_face =
                 convex_cell.dimensionality.vector_is_valid(half_space.normal())
                     && match half_space {
@@ -72,7 +72,7 @@ impl VoronoiCell {
                         _ => true,
                     };
             if should_construct_face {
-                maybe_face.get_or_insert(VoronoiFaceBuilder::new(idx, loc, half_space));
+                maybe_face.get_or_insert(VoronoiFace::init(convex_cell, clipping_plane_idx));
             }
         };
 
@@ -89,14 +89,14 @@ impl VoronoiCell {
 
             // Initialize a new face if necessary
             let maybe_face = &mut maybe_faces[tet.plane_idx];
-            maybe_init_face(maybe_face, &convex_cell.clipping_planes[tet.plane_idx]);
+            maybe_init_face(maybe_face, tet.plane_idx);
             // Update this face's area and centroid if necessary
             if let Some(face) = maybe_face {
-                face.extend(tet.vertices[0], tet.vertices[1], tet.vertices[2])
+                face.collect(tet.vertices[0], tet.vertices[1], tet.vertices[2], loc)
             }
         }
         // Filter out uninitialized faces and finalize the rest
-        faces.extend(maybe_faces.into_iter().flatten().map(|face| face.build()));
+        faces.extend(maybe_faces.into_iter().flatten().map(|face| face.finalize()));
 
         let VolumeCentroidIntegrator { volume, centroid } = volume_centroid_integral.finalize();
 
