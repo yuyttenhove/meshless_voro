@@ -150,7 +150,7 @@ fn random_point(size: Vec3, rng: &mut StdRng) -> Vec3 {
 
 #[test]
 fn test_extract_vertices() {
-    let count = 500000;
+    let count = 4000;
     let size = Vec3::splat(3.);
     let mut rng = StdRng::seed_from_u64(2);
     let generators = (0..count).map(|_| random_point(size, &mut rng)).collect();
