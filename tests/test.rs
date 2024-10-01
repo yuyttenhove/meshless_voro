@@ -16,6 +16,14 @@ macro_rules! log_time {
     }};
 }
 
+macro_rules! vec3_approx_eq {
+    ($t:ty, $a:expr, $b:expr) => {{
+        assert_approx_eq!($t, $a.x, $b.x, epsilon=1e-8);
+        assert_approx_eq!($t, $a.y, $b.y, epsilon=1e-8);
+        assert_approx_eq!($t, $a.z, $b.z, epsilon=1e-8);
+    }};
+}
+
 #[derive(Debug)]
 pub struct VCellRaw {
     pub id: i32,
@@ -120,23 +128,25 @@ pub fn impl_meshless_voro(size: Vec3, points: Vec<Vec3>) -> Vec<VCellRaw> {
     });
 
     for (volume, volume2) in volumes.iter().zip(volumes2.iter()) {
-        assert_approx_eq!(f64, volume.volume, -volume2.volume,  epsilon=1e-10);
+        assert_approx_eq!(f64, volume.volume, volume2.volume,  epsilon=1e-10);
     }
     for (area, area2) in areas.iter().zip(areas2.iter()) {
         assert_eq!(area.left(), area2.left());
         assert_eq!(area.right(), area2.right());
-        assert_approx_eq!(f64, area.integral().area, -area2.integral().area, epsilon=1e-10)
+        assert_approx_eq!(f64, area.integral().area, area2.integral().area, epsilon=1e-10);
     }
 
     assert_eq!(_voronoi2.cells().len(), _voronoi3.cells().len());
     assert_eq!(_voronoi2.cells().len(), volumes.len());
     for (i, (cell, cell2)) in _voronoi2.cells().iter().zip(_voronoi3.cells().iter()).enumerate() {
-        assert_approx_eq!(f64, cell.volume(), -cell2.volume(), epsilon=1e-10);
+        assert_approx_eq!(f64, cell.volume(), cell2.volume(), epsilon=1e-10);
         assert_approx_eq!(f64, cell.volume(), volumes[i].volume);
+        vec3_approx_eq!(f64, cell.centroid(), cell2.centroid());
         assert_eq!(cell.face_count(), cell2.face_count());
         for (face, face2) in cell.faces(&_voronoi2).zip(cell2.faces(&_voronoi3)) {
             // println!("{:}, {:}", face.area(), area.area);
-            assert_approx_eq!(f64, face.area(), -face2.area(), epsilon=1e-10);
+            assert_approx_eq!(f64, face.area(), face2.area(), epsilon=1e-10);
+            vec3_approx_eq!(f64, face.centroid(), face2.centroid());
             // assert_approx_eq!(f64, face.area(), area.area, epsilon=1e-10);
         }
     }

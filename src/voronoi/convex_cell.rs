@@ -487,7 +487,7 @@ impl ConvexCell<WithoutFaces> {
         let mut cur_v = &self.vertices[vert_idx[0]];
         let mut p_idx_in_cur_v = cur_v.plane_idx(clipping_plane_idx).expect("Plane contained in vertex by construction");
         // Get the other plane contained in the next vertex
-        let mut next_plane = cur_v.dual[(p_idx_in_cur_v + 2) % 3];
+        let mut next_plane = cur_v.dual[(p_idx_in_cur_v + 1) % 3];
         
         let mut cur_idx = 1;
         while cur_idx < vert_idx.len() - 1 {
@@ -497,7 +497,7 @@ impl ConvexCell<WithoutFaces> {
                 cur_v = &self.vertices[vert_idx[test_idx]];
                 p_idx_in_cur_v = cur_v.plane_idx(clipping_plane_idx).expect("All given vertices must contain clipping plane");
                 if cur_v.dual.contains(&next_plane) {
-                    next_plane = cur_v.dual[(p_idx_in_cur_v + 2) % 3];
+                    next_plane = cur_v.dual[(p_idx_in_cur_v + 1) % 3];
                     vert_idx.swap(cur_idx, test_idx);
                     cur_idx += 1;
                     break;
