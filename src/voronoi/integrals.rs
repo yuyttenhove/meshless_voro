@@ -21,7 +21,7 @@ use super::convex_cell::{ConvexCell, ConvexCellMarker};
 /// - If the three vertices are ordered clockwise, the tetrahedron should
 ///   subtract from the integrals. this is to correct for another tetrahedron
 ///   that is not fully contained within the Voronoi cell.
-pub trait CellIntegral: Sized {
+pub trait CellIntegral: Sized + Send {
     /// Initialize a [`CellIntegral`] for the given [`ConvexCell`].
     fn init<M: ConvexCellMarker>(cell: &ConvexCell<M>) -> Self;
 
@@ -120,7 +120,7 @@ impl CellIntegral for VolumeIntegral {
 /// - If the three vertices are ordered clockwise, the tetrahedron should
 ///   subtract from the integrals. this is to correct for another tetrahedron
 ///   that is not fully contained within the Voronoi cell.
-pub trait FaceIntegral: Clone {
+pub trait FaceIntegral: Clone + Send {
     /// Initialize a [`FaceIntegral`] for the given [`ConvexCell`] and
     /// clipping_plane_index.
     fn init<M: ConvexCellMarker>(cell: &ConvexCell<M>, clipping_plane_idx: usize) -> Self;
@@ -185,12 +185,13 @@ impl FaceIntegral for AreaCentroidIntegrator {
 
 /// Example implementation of a simple face integrator for computing the area of
 /// the faces of a [`ConvexCell`].
+#[derive(Default, Clone)]
 pub struct AreaIntegral {
     pub area: f64,
 }
 
-impl CellIntegral for AreaIntegral {
-    fn init<M: ConvexCellMarker>(_cell: &ConvexCell<M>) -> Self {
+impl FaceIntegral for AreaIntegral {
+    fn init<M: ConvexCellMarker>(_cell: &ConvexCell<M>, _clipping_plane_idx: usize) -> Self {
         Self { area: 0. }
     }
 

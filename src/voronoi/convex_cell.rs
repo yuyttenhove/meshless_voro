@@ -9,6 +9,7 @@ use crate::{
 };
 use glam::DVec3;
 use std::marker::PhantomData;
+use std::any::TypeId;
 
 /// A vertex of a [`ConvexCell`].
 #[derive(Clone, Debug)]
@@ -85,50 +86,78 @@ impl ConvexCellTet {
     }
 }
 
-/// Decompose a [`ConvexCell`] into an iterator of oriented tetrahedra.
-///
-/// Useful to compute integrals, such as volume, area, centroid, etc. for
-/// [`ConvexCell`]s.
-pub(super) struct ConvexCellDecomposition<'a, M: ConvexCellMarker> {
-    convex_cell: &'a ConvexCell<M>,
+struct DecompositionWithFaces<'a> {
+    cur_face_idx: usize,
     cur_vertex_idx: usize,
-    cur_vertex: &'a Vertex,
+    convex_cell: &'a ConvexCell<WithFaces>
+}
+
+impl<'a> DecompositionWithFaces<'a> {
+    fn new(convex_cell: &'a ConvexCell<WithFaces>) -> Self {
+        Self { cur_face_idx: 0, cur_vertex_idx: 1, convex_cell }
+    }
+
+    fn next(&mut self) -> Option<ConvexCellTet> {
+        if self.cur_face_idx >= self.convex_cell.face_count() {
+            return None;
+        }
+
+        // Get face vertices
+        let vertices = self.convex_cell.face_vertices(self.cur_face_idx);
+
+        // Construct next tet
+        let next = ConvexCellTet::new(
+            self.convex_cell.vertices[vertices[0]].loc,
+            self.convex_cell.vertices[vertices[self.cur_vertex_idx]].loc,
+            self.convex_cell.vertices[vertices[self.cur_vertex_idx + 1]].loc,
+            self.convex_cell.faces()[self.cur_face_idx].clipping_plane,
+        );
+
+        // update variables
+        self.cur_vertex_idx += 1;
+        if self.cur_vertex_idx > self.convex_cell.faces()[self.cur_face_idx].vertex_count - 2 {
+            self.cur_vertex_idx = 1;
+            self.cur_face_idx += 1;
+        }
+
+        Some(next)
+    }
+}
+
+struct DecompositionWithoutFaces {
+    cur_vertex_idx: usize,
+    cur_vertex: Vertex,
     cur_tet_idx: usize,
     projections: [DVec3; 6],
 }
 
-impl<'a,  M: ConvexCellMarker> ConvexCellDecomposition<'a, M> {
-    fn new(convex_cell: &'a ConvexCell<M>) -> Self {
+impl DecompositionWithoutFaces {
+    fn new<M: ConvexCellMarker>(convex_cell: &ConvexCell<M>) -> Self {
         let mut decomposition = Self {
-            convex_cell,
             cur_vertex_idx: 0,
-            cur_vertex: &convex_cell.vertices[0],
+            cur_vertex: convex_cell.vertices[0].clone(),
             cur_tet_idx: 0,
             projections: [DVec3::ZERO; 6],
         };
-        decomposition.load_vertex();
+        decomposition.load_vertex(convex_cell);
         decomposition
     }
 
-    fn load_vertex(&mut self) {
-        self.cur_vertex = &self.convex_cell.vertices[self.cur_vertex_idx];
+    fn load_vertex<M: ConvexCellMarker>(&mut self, convex_cell: &ConvexCell<M>) {
+        self.cur_vertex = convex_cell.vertices[self.cur_vertex_idx].clone();
         for i in 0..3 {
-            let cur_plane = &self.convex_cell.clipping_planes[self.cur_vertex.dual[i]].plane;
+            let cur_plane = &convex_cell.clipping_planes[self.cur_vertex.dual[i]].plane;
             let next_plane =
-                &self.convex_cell.clipping_planes[self.cur_vertex.dual[(i + 1) % 3]].plane;
-            self.projections[2 * i] = cur_plane.project_onto(self.convex_cell.loc);
+                &convex_cell.clipping_planes[self.cur_vertex.dual[(i + 1) % 3]].plane;
+            self.projections[2 * i] = cur_plane.project_onto(convex_cell.loc);
             self.projections[2 * i + 1] =
-                next_plane.project_onto_intersection(cur_plane, self.convex_cell.loc);
+                next_plane.project_onto_intersection(cur_plane, convex_cell.loc);
         }
     }
-}
 
-impl< M: ConvexCellMarker> Iterator for ConvexCellDecomposition<'_, M> {
-    type Item = ConvexCellTet;
-
-    fn next(&mut self) -> Option<Self::Item> {
+    fn next<M: ConvexCellMarker>(&mut self, convex_cell: &ConvexCell<M>) -> Option<ConvexCellTet> {
         // Any vertices left to treat?
-        if self.cur_vertex_idx >= self.convex_cell.vertices.len() {
+        if self.cur_vertex_idx >= convex_cell.vertices.len() {
             return None;
         }
 
@@ -145,8 +174,8 @@ impl< M: ConvexCellMarker> Iterator for ConvexCellDecomposition<'_, M> {
         if self.cur_tet_idx == 6 {
             self.cur_tet_idx = 0;
             self.cur_vertex_idx += 1;
-            if self.cur_vertex_idx < self.convex_cell.vertices.len() {
-                self.load_vertex();
+            if self.cur_vertex_idx < convex_cell.vertices.len() {
+                self.load_vertex(convex_cell);
             }
         }
 
@@ -154,13 +183,55 @@ impl< M: ConvexCellMarker> Iterator for ConvexCellDecomposition<'_, M> {
     }
 }
 
+enum Decomposition<'a> {
+    WithFaces(DecompositionWithFaces<'a>),
+    WithoutFaces(DecompositionWithoutFaces),
+}
+
+/// Decompose a [`ConvexCell`] into an iterator of oriented tetrahedra.
+///
+/// Useful to compute integrals, such as volume, area, centroid, etc. for
+/// [`ConvexCell`]s.
+pub(super) struct ConvexCellDecomposition<'a, M: ConvexCellMarker> {
+    convex_cell: &'a ConvexCell<M>,
+    inner: Decomposition<'a>,
+}
+
+impl<'a,  M: ConvexCellMarker + 'static> ConvexCellDecomposition<'a, M> {
+    fn new(convex_cell: &'a ConvexCell<M>) -> Self {
+        let decomposition = if TypeId::of::<M>() == TypeId::of::<WithFaces>() {
+            // Safety: we know that the convex_cell is with faces 
+            unsafe {
+                let convex_cell_ref: &ConvexCell<WithFaces> = std::mem::transmute(convex_cell);
+                Decomposition::WithFaces(DecompositionWithFaces::new(convex_cell_ref))
+            }
+        } else {
+            Decomposition::WithoutFaces(DecompositionWithoutFaces::new(convex_cell))
+        };
+        Self {
+            convex_cell, inner: decomposition,
+        }
+    }
+}
+
+impl<M: ConvexCellMarker> Iterator for ConvexCellDecomposition<'_, M> {
+    type Item = ConvexCellTet;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.inner {
+            Decomposition::WithFaces(ref mut decomposition) => decomposition.next(),
+            Decomposition::WithoutFaces(ref mut decomposition) => decomposition.next(self.convex_cell),
+        }
+    }
+}
+
 pub(crate) trait ConvexCellMarker: Clone + Send + Sync + Default {}
 
 #[derive(Copy, Clone, Default)]
-pub(crate) struct WithoutFaces;
+pub struct WithoutFaces;
 impl ConvexCellMarker for WithoutFaces {}
 #[derive(Copy, Clone, Default)]
-pub(crate) struct WithFaces;
+pub struct WithFaces;
 impl ConvexCellMarker for WithFaces {}
 
 /// Meshless representation of a Voronoi cell as an intersection of
@@ -439,7 +510,7 @@ impl ConvexCell<WithoutFaces> {
     }
 }
 
-impl<M: ConvexCellMarker> ConvexCell<M> {
+impl<M: ConvexCellMarker + 'static> ConvexCell<M> {
 
     /// Safely transition between two states
     fn transition<N: ConvexCellMarker>(self) -> ConvexCell<N> {
