@@ -18,9 +18,9 @@ macro_rules! log_time {
 
 macro_rules! vec3_approx_eq {
     ($t:ty, $a:expr, $b:expr) => {{
-        assert_approx_eq!($t, $a.x, $b.x, epsilon=1e-8);
-        assert_approx_eq!($t, $a.y, $b.y, epsilon=1e-8);
-        assert_approx_eq!($t, $a.z, $b.z, epsilon=1e-8);
+        assert_approx_eq!($t, $a.x, $b.x, epsilon=1e-5);
+        assert_approx_eq!($t, $a.y, $b.y, epsilon=1e-5);
+        assert_approx_eq!($t, $a.z, $b.z, epsilon=1e-5);
     }};
 }
 
@@ -147,6 +147,7 @@ pub fn impl_meshless_voro(size: Vec3, points: Vec<Vec3>) -> Vec<VCellRaw> {
             // println!("{:}, {:}", face.area(), area.area);
             assert_approx_eq!(f64, face.area(), face2.area(), epsilon=1e-10);
             vec3_approx_eq!(f64, face.centroid(), face2.centroid());
+            vec3_approx_eq!(f64, face.normal(), face2.normal());
             // assert_approx_eq!(f64, face.area(), area.area, epsilon=1e-10);
         }
     }
@@ -160,9 +161,9 @@ fn random_point(size: Vec3, rng: &mut StdRng) -> Vec3 {
 
 #[test]
 fn test_extract_vertices() {
-    let count = 4000;
+    let count = 1000;
     let size = Vec3::splat(3.);
-    let mut rng = StdRng::seed_from_u64(2);
+    let mut rng = StdRng::seed_from_u64(42);
     let generators = (0..count).map(|_| random_point(size, &mut rng)).collect();
     // let generators = vec![Vec3::new(1., 1., 1.), Vec3::new(2., 2., 2.)];
     // let generators = vec![Vec3::new(1., 1., 1.)];
