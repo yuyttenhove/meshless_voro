@@ -487,6 +487,7 @@ impl<M: ConvexCellMarker + 'static> From<&VoronoiIntegrator<M>> for Voronoi {
 #[derive(Clone)]
 pub struct VoronoiIntegrator<Marker: ConvexCellMarker> {
     cells: Vec<Option<ConvexCell<Marker>>>,
+    cell_is_active: Vec<bool>,
     anchor: DVec3,
     width: DVec3,
     dimensionality: Dimensionality,
@@ -526,6 +527,8 @@ impl VoronoiIntegrator<WithoutFaces> {
             width.z = 1.;
         }
 
+        let cell_is_active = mask.map_or(vec![true; generators.len()], |mask| mask.to_vec());
+
         // Construct generators
         let generators: Vec<Generator> = generators
             .iter()
@@ -538,7 +541,7 @@ impl VoronoiIntegrator<WithoutFaces> {
 
         // Helper function
         let build = |(idx, generator): (usize, &Generator)| {
-            if mask.map_or(true, |mask| mask[idx]) {
+            if cell_is_active[idx] {
                 let loc = generator.loc();
                 debug_assert_eq!(generator.id(), idx);
                 let nearest_neighbours = if periodic {
@@ -567,6 +570,7 @@ impl VoronoiIntegrator<WithoutFaces> {
 
         Self {
             cells,
+            cell_is_active,
             anchor,
             width,
             dimensionality,
@@ -586,6 +590,7 @@ impl VoronoiIntegrator<WithoutFaces> {
         let cells_with_faces = self.cells.into_iter().map(|cell| cell.map(|cell| cell.with_faces())).collect();
         VoronoiIntegrator::<WithFaces> {
             cells: cells_with_faces,
+            cell_is_active: self.cell_is_active,
             anchor: self.anchor,
             width: self.width,
             dimensionality: self.dimensionality, 
@@ -654,10 +659,10 @@ impl<M: ConvexCellMarker + 'static> VoronoiIntegrator<M> {
     pub fn compute_face_integrals_sym<I: FaceIntegral>(&self) -> Vec<FaceIntegrator<I>> {
         #[cfg(feature = "rayon")]
         return cells_map_flatten_par!(self.cells, |cell| cell
-            .compute_face_integrals_sym((), &self.active_cells_mask()));
+            .compute_face_integrals_sym((), &self.cell_is_active));
         #[cfg(not(feature = "rayon"))]
         cells_map_flatten!(self.cells, |cell| cell
-            .compute_face_integrals_sym((), &self.active_cells_mask()))
+            .compute_face_integrals_sym((), &self.cell_is_active))
     }
 
     pub fn compute_face_integrals_with_data<D: Copy + Sync, I: FaceIntegralWithData<Data = D>>(
@@ -676,10 +681,10 @@ impl<M: ConvexCellMarker + 'static> VoronoiIntegrator<M> {
     ) -> Vec<FaceIntegrator<I>> {
         #[cfg(feature = "rayon")]
         return cells_map_flatten_par!(self.cells, |cell| cell
-            .compute_face_integrals_sym(extra_data, &self.active_cells_mask()));
+            .compute_face_integrals_sym(extra_data, &self.cell_is_active));
         #[cfg(not(feature = "rayon"))]
         cells_map_flatten!(self.cells, |cell| cell
-            .compute_face_integrals_sym(extra_data, &self.active_cells_mask()))
+            .compute_face_integrals_sym(extra_data, &self.cell_is_active))
     }
 
 
@@ -690,7 +695,7 @@ impl<M: ConvexCellMarker + 'static> VoronoiIntegrator<M> {
     pub fn build_voronoi_cells(&self, faces: &mut [Vec<VoronoiFace>]) -> Vec<VoronoiCell> {
         let build = |(convex_cell, faces): (&Option<ConvexCell::<_>>, _)| match convex_cell {
             Some(convex_cell) => {
-                VoronoiCell::from_convex_cell(convex_cell, faces, Some(&self.active_cells_mask()))
+                VoronoiCell::from_convex_cell(convex_cell, faces, Some(&self.cell_is_active))
             } 
             None => VoronoiCell::default(),
         };
@@ -700,10 +705,6 @@ impl<M: ConvexCellMarker + 'static> VoronoiIntegrator<M> {
         let voronoi_cells = self.cells.iter().zip(faces.iter_mut()).map(build).collect();
 
         voronoi_cells
-    }
-
-    fn active_cells_mask(&self) -> Vec<bool> {
-        self.cells.iter().map(|cell| cell.is_some()).collect()
     }
 }
 

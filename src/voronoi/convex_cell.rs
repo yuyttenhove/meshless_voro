@@ -561,7 +561,8 @@ impl<M: ConvexCellMarker + 'static> ConvexCell<M> {
 
         integrals
             .into_iter()
-            .filter_map(|maybe_integral| maybe_integral.map(|integral| integral.finalize()))
+            .flatten()
+            .map(|integral| integral.finalize())
             .collect()
     }
 
@@ -604,7 +605,8 @@ impl<M: ConvexCellMarker + 'static> ConvexCell<M> {
 
         integrals
             .into_iter()
-            .filter_map(|maybe_integral| maybe_integral.map(|integral| integral.finalize()))
+            .flatten()
+            .map(|integral| integral.finalize())
             .collect()
     }
 }

@@ -49,10 +49,10 @@ pub fn impl_meshless_voro(size: Vec3, points: Vec<Vec3>) -> Vec<VCellRaw> {
 
     
     let (volumes, areas) = log_time!(
-    "Manually compute integrals",
+    "Manually compute integrals -- sym",
     {
         let volumes = _voronoi_integrator.compute_cell_integrals::<VolumeIntegral>();
-        let areas = _voronoi_integrator.compute_face_integrals::<AreaIntegral>();
+        let areas = _voronoi_integrator.compute_face_integrals_sym::<AreaIntegral>();
         (volumes, areas)
     });
 
@@ -112,10 +112,10 @@ pub fn impl_meshless_voro(size: Vec3, points: Vec<Vec3>) -> Vec<VCellRaw> {
 
     
     let (volumes2, areas2) = log_time!(
-    "Manually compute integrals -- with faces",
+    "Manually compute integrals -- with faces -- sym",
     {
         let volumes = _voronoi_integrator.compute_cell_integrals::<VolumeIntegral>();
-        let areas = _voronoi_integrator.compute_face_integrals::<AreaIntegral>();
+        let areas = _voronoi_integrator.compute_face_integrals_sym::<AreaIntegral>();
         (volumes, areas)
     });
 
@@ -150,7 +150,7 @@ fn random_point(size: Vec3, rng: &mut StdRng) -> Vec3 {
 
 #[test]
 fn test_extract_vertices() {
-    let count = 150000;
+    let count = 500000;
     let size = Vec3::splat(3.);
     let mut rng = StdRng::seed_from_u64(2);
     let generators = (0..count).map(|_| random_point(size, &mut rng)).collect();
