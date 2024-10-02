@@ -399,8 +399,27 @@ impl Voronoi {
     }
 
     /// Save the Voronoi tessellation to a HDF5 file.
-    ///
-    /// Requires the `hdf5` feature to be enabled.
+    /// Requires the `hdf5` feature to be enabled!
+    /// 
+    /// * `filename` - Filename to write to. Contents will be overwritten!
+    /// 
+    /// This creates two groups in the `.hdf5` file called `Cells` and `Faces`, 
+    /// in addition to one top level dataset `CellFaceConnections`.
+    /// 
+    /// `Cells` stores the following datasets:
+    /// * `Volume` - The volumes of the cells
+    /// * `Centroid` - The centroid of the cells
+    /// * `FaceCount` - The number of faces of each cell
+    /// * `FaceConnectionsOffset` - The offset of a given cell's face indices in the 
+    ///                             `CellFaceConnections` dataset.
+    /// * `Generator` - The position of the generator of each cell.
+    /// 
+    /// `Faces` stores the following datasets:
+    /// * `Area` - The area of the faces
+    /// * `Centroid` - The centroid of the faces
+    /// * `Normal` - The normal vectors of the faces.
+    /// 
+    /// `CellFaceConnections` contains the concatenated indices of the faces of each cell.
     #[cfg(feature = "hdf5")]
     pub fn write_to_hdf5<P: AsRef<Path>>(&self, filename: P) -> Result<(), Box<dyn Error>> {
         // Create the file to write the data to

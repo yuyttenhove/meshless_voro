@@ -58,6 +58,12 @@ rug = ["dep:rug"]
 ## [HDF5 format](https://en.wikipedia.org/wiki/Hierarchical_Data_Format#HDF5).
 hdf5 = ["dep:hdf5"]
 
+[package.metadata.docs.rs]
+# Features to pass to Cargo (default: []) when building docs
+features = ["rayon", "hdf5", "ibig"]
+# Whether to pass `--no-default-features` to Cargo (default: false)
+no-default-features = true
+
 [dev-dependencies]
 float-cmp = "0.9"
 rand = "0.8"
