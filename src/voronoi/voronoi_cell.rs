@@ -1,13 +1,10 @@
 use glam::DVec3;
 
-use crate::voronoi::{
-    half_space::HalfSpace,
-    voronoi_face::VoronoiFace,
-    Voronoi,
-};
+use crate::voronoi::{half_space::HalfSpace, voronoi_face::VoronoiFace, Voronoi};
 
 use super::{
-    convex_cell::{ConvexCell, ConvexCellMarker}, integrals::{CellIntegral, VolumeCentroidIntegral}
+    convex_cell::{ConvexCell, ConvexCellMarker},
+    integrals::{CellIntegral, VolumeCentroidIntegral},
 };
 
 /// A Voronoi cell.
@@ -53,8 +50,7 @@ impl VoronoiCell {
             (0..convex_cell.clipping_planes.len()).map(|_| None).collect();
 
         // Helper function to decide which faces should be constucted.
-        let maybe_init_face = |maybe_face: &mut Option<VoronoiFace>,
-                               clipping_plane_idx: usize| {
+        let maybe_init_face = |maybe_face: &mut Option<VoronoiFace>, clipping_plane_idx: usize| {
             // Only construct faces for clipping planes of valid dimensionality.
             let half_space = &convex_cell.clipping_planes[clipping_plane_idx];
             let should_construct_face =

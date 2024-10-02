@@ -2,20 +2,26 @@ use glam::DVec3;
 
 use crate::geometry::signed_area_tri;
 
-use super::{convex_cell::ConvexCellMarker, integrals::{FaceIntegral, FaceIntegrator}, ConvexCell};
-
+use super::{
+    convex_cell::ConvexCellMarker,
+    integrals::{FaceIntegral, FaceIntegrator},
+    ConvexCell,
+};
 
 #[derive(Clone)]
 struct VoronoiFaceIntegral {
-    area: f64, 
+    area: f64,
     centroid: DVec3,
     normal: DVec3,
 }
 
 impl FaceIntegral for VoronoiFaceIntegral {
-    fn init<M: super::convex_cell::ConvexCellMarker>(cell: &super::ConvexCell<M>, clipping_plane_idx: usize) -> Self {
+    fn init<M: super::convex_cell::ConvexCellMarker>(
+        cell: &super::ConvexCell<M>,
+        clipping_plane_idx: usize,
+    ) -> Self {
         Self {
-            area: 0., 
+            area: 0.,
             centroid: DVec3::ZERO,
             normal: cell.clipping_planes[clipping_plane_idx].plane.n,
         }
@@ -41,13 +47,16 @@ impl FaceIntegral for VoronoiFaceIntegral {
 /// A Voronoi face between two neighbouring generators.
 #[derive(Clone)]
 pub struct VoronoiFace {
-    inner: FaceIntegrator<VoronoiFaceIntegral>
+    inner: FaceIntegrator<VoronoiFaceIntegral>,
 }
 
 impl VoronoiFace {
-    pub(super) fn init<M: ConvexCellMarker>(convex_cell: &ConvexCell<M>, clipping_plane_idx: usize) -> Self {
+    pub(super) fn init<M: ConvexCellMarker>(
+        convex_cell: &ConvexCell<M>,
+        clipping_plane_idx: usize,
+    ) -> Self {
         Self {
-            inner: FaceIntegrator::init(convex_cell, clipping_plane_idx, ())
+            inner: FaceIntegrator::init(convex_cell, clipping_plane_idx, ()),
         }
     }
 

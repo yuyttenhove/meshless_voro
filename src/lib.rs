@@ -106,6 +106,6 @@ mod util;
 mod voronoi;
 
 pub use voronoi::{
-    integrals, ConvexCell, Dimensionality, Voronoi, VoronoiCell, VoronoiFace, VoronoiIntegrator, half_space::HalfSpace, convex_cell::Vertex,
+    convex_cell::Vertex, half_space::HalfSpace, integrals, ConvexCell, Dimensionality, Voronoi,
+    VoronoiCell, VoronoiFace, VoronoiIntegrator,
 };
-

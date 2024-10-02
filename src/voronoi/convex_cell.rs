@@ -1,5 +1,6 @@
 use super::{
-    boundary::SimulationBoundary, convex_cell_alternative::ConvexCell as ConvexCellAlternative, half_space::HalfSpace, integrals::FaceIntegrator, Dimensionality, Generator
+    boundary::SimulationBoundary, convex_cell_alternative::ConvexCell as ConvexCellAlternative,
+    half_space::HalfSpace, integrals::FaceIntegrator, Dimensionality, Generator,
 };
 use crate::{
     geometry::{in_sphere_test_exact, intersect_planes, Plane},
@@ -7,20 +8,20 @@ use crate::{
     simple_cycle::SimpleCycle,
 };
 use glam::DVec3;
-use std::marker::PhantomData;
 use std::any::TypeId;
+use std::marker::PhantomData;
 
 /// A vertex of a [`ConvexCell`].
 #[derive(Clone, Debug)]
 pub struct Vertex {
     /// The location of the [`Vertex`] (in global coordinates).
     pub loc: DVec3,
-    /// The dual representation: the indices of the three half spaces in the corresponding 
-    /// vector in the [`ConvexCell`], that intersect at this [`Vertex`] (in counterclockwise 
+    /// The dual representation: the indices of the three half spaces in the corresponding
+    /// vector in the [`ConvexCell`], that intersect at this [`Vertex`] (in counterclockwise
     /// order around the vertex).
     pub dual: [usize; 3],
     /// The safety radius of this vertex.
-    pub (super) radius2: f64,
+    pub(super) radius2: f64,
 }
 
 impl Vertex {
@@ -88,12 +89,16 @@ impl ConvexCellTet {
 struct DecompositionWithFaces<'a> {
     cur_face_idx: usize,
     cur_vertex_idx: usize,
-    convex_cell: &'a ConvexCell<WithFaces>
+    convex_cell: &'a ConvexCell<WithFaces>,
 }
 
 impl<'a> DecompositionWithFaces<'a> {
     fn new(convex_cell: &'a ConvexCell<WithFaces>) -> Self {
-        Self { cur_face_idx: 0, cur_vertex_idx: 1, convex_cell }
+        Self {
+            cur_face_idx: 0,
+            cur_vertex_idx: 1,
+            convex_cell,
+        }
     }
 
     fn next(&mut self) -> Option<ConvexCellTet> {
@@ -146,8 +151,7 @@ impl DecompositionWithoutFaces {
         self.cur_vertex = convex_cell.vertices[self.cur_vertex_idx].clone();
         for i in 0..3 {
             let cur_plane = &convex_cell.clipping_planes[self.cur_vertex.dual[i]].plane;
-            let next_plane =
-                &convex_cell.clipping_planes[self.cur_vertex.dual[(i + 1) % 3]].plane;
+            let next_plane = &convex_cell.clipping_planes[self.cur_vertex.dual[(i + 1) % 3]].plane;
             self.projections[2 * i] = cur_plane.project_onto(convex_cell.loc);
             self.projections[2 * i + 1] =
                 next_plane.project_onto_intersection(cur_plane, convex_cell.loc);
@@ -196,10 +200,10 @@ pub(super) struct ConvexCellDecomposition<'a, M: ConvexCellMarker> {
     inner: Decomposition<'a>,
 }
 
-impl<'a,  M: ConvexCellMarker + 'static> ConvexCellDecomposition<'a, M> {
+impl<'a, M: ConvexCellMarker + 'static> ConvexCellDecomposition<'a, M> {
     fn new(convex_cell: &'a ConvexCell<M>) -> Self {
         let decomposition = if TypeId::of::<M>() == TypeId::of::<WithFaces>() {
-            // Safety: we know that the convex_cell is with faces 
+            // Safety: we know that the convex_cell is with faces
             unsafe {
                 let convex_cell_ref: &ConvexCell<WithFaces> = std::mem::transmute(convex_cell);
                 Decomposition::WithFaces(DecompositionWithFaces::new(convex_cell_ref))
@@ -208,7 +212,8 @@ impl<'a,  M: ConvexCellMarker + 'static> ConvexCellDecomposition<'a, M> {
             Decomposition::WithoutFaces(DecompositionWithoutFaces::new(convex_cell))
         };
         Self {
-            convex_cell, inner: decomposition,
+            convex_cell,
+            inner: decomposition,
         }
     }
 }
@@ -219,7 +224,9 @@ impl<M: ConvexCellMarker> Iterator for ConvexCellDecomposition<'_, M> {
     fn next(&mut self) -> Option<Self::Item> {
         match self.inner {
             Decomposition::WithFaces(ref mut decomposition) => decomposition.next(),
-            Decomposition::WithoutFaces(ref mut decomposition) => decomposition.next(self.convex_cell),
+            Decomposition::WithoutFaces(ref mut decomposition) => {
+                decomposition.next(self.convex_cell)
+            }
         }
     }
 }
@@ -236,7 +243,7 @@ impl ConvexCellMarker for WithFaces {}
 /// Meshless representation of a Voronoi cell as an intersection of
 /// [`HalfSpace`]s.
 ///
-/// Can be used to compute integrated cell and face quantities. 
+/// Can be used to compute integrated cell and face quantities.
 /// In this representation, the vertices of the Voronoi cell are also available.
 #[derive(Clone, Debug)]
 pub struct ConvexCell<T: ConvexCellMarker> {
@@ -260,10 +267,20 @@ pub struct ConvexCell<T: ConvexCellMarker> {
 }
 
 impl ConvexCell<WithoutFaces> {
-    pub(crate) fn new(loc: DVec3, idx: usize, clipping_planes: Vec<HalfSpace>, vertices: Vec<Vertex>, dimensionality: Dimensionality) -> Self {
+    pub(crate) fn new(
+        loc: DVec3,
+        idx: usize,
+        clipping_planes: Vec<HalfSpace>,
+        vertices: Vec<Vertex>,
+        dimensionality: Dimensionality,
+    ) -> Self {
         let n_planes = clipping_planes.len();
         Self {
-            loc, idx, clipping_planes, vertices, dimensionality,
+            loc,
+            idx,
+            clipping_planes,
+            vertices,
+            dimensionality,
             boundary: SimpleCycle::new(n_planes),
             faces: None,
             face_vertex_connections: None,
@@ -435,15 +452,19 @@ impl ConvexCell<WithoutFaces> {
         self.safety_radius = 2. * max_dist_2.sqrt();
     }
 
-    /// Convert this [`ConvexCell`] into one with face information stored. 
+    /// Convert this [`ConvexCell`] into one with face information stored.
     /// This makes it impossible to clip this [`ConvexCell`] with additional half spaces.
-    /// 
-    /// NOTE: this is only supported for 3D Voronoi meshes, since the underlying 
-    /// representation is always 3D,  this method would lead to additional, nonsensical vertices 
+    ///
+    /// NOTE: this is only supported for 3D Voronoi meshes, since the underlying
+    /// representation is always 3D,  this method would lead to additional, nonsensical vertices
     /// along the extra dimensions in 1D or 2D. The function panics when invoked in 1D or 2D.
     pub fn with_faces(mut self) -> ConvexCell<WithFaces> {
-        assert_eq!(self.dimensionality, Dimensionality::ThreeD, "Can only convert to WithFaces in 3D!");
-        
+        assert_eq!(
+            self.dimensionality,
+            Dimensionality::ThreeD,
+            "Can only convert to WithFaces in 3D!"
+        );
+
         // Collect the vertices on all clipping planes (if any)
         let mut face_vertex_connections = vec![vec![]; self.clipping_planes.len()];
         for (idx, vertex) in self.vertices.iter().enumerate() {
@@ -452,29 +473,35 @@ impl ConvexCell<WithoutFaces> {
             face_vertex_connections[vertex.dual[2]].push(idx);
         }
         // Sort the face vertices in counterclockwise order for each face
-        face_vertex_connections.iter_mut().enumerate().for_each(|(clipping_plane_idx, vertices)| self.sort_face_vertices(vertices, clipping_plane_idx));
+        face_vertex_connections.iter_mut().enumerate().for_each(
+            |(clipping_plane_idx, vertices)| self.sort_face_vertices(vertices, clipping_plane_idx),
+        );
 
         // Create a new face if the corresponding half space contains in some vertices
         let mut offset = 0;
-        let faces = face_vertex_connections.iter().enumerate().filter_map(|(id, vertices)| {
-            if vertices.len() == 0 {
-                return None;
-            }
-            let face = ConvexCellFace {
-                clipping_plane: id,
-                vertex_count: vertices.len(),
-                vertex_offset: offset,
-            };
-            offset += face.vertex_count;
-            Some(face)
-        }).collect();
+        let faces = face_vertex_connections
+            .iter()
+            .enumerate()
+            .filter_map(|(id, vertices)| {
+                if vertices.len() == 0 {
+                    return None;
+                }
+                let face = ConvexCellFace {
+                    clipping_plane: id,
+                    vertex_count: vertices.len(),
+                    vertex_offset: offset,
+                };
+                offset += face.vertex_count;
+                Some(face)
+            })
+            .collect();
 
         // Set faces and face_vertex_connections
         self.faces = Some(faces);
-        self.face_vertex_connections = Some(face_vertex_connections.into_iter().flatten().collect());
+        self.face_vertex_connections =
+            Some(face_vertex_connections.into_iter().flatten().collect());
 
         ConvexCell::transition(self)
-
     }
 
     /// Sort the vertices on the given clipping plane, given the current vertex
@@ -485,17 +512,21 @@ impl ConvexCell<WithoutFaces> {
         }
 
         let mut cur_v = &self.vertices[vert_idx[0]];
-        let mut p_idx_in_cur_v = cur_v.plane_idx(clipping_plane_idx).expect("Plane contained in vertex by construction");
+        let mut p_idx_in_cur_v = cur_v
+            .plane_idx(clipping_plane_idx)
+            .expect("Plane contained in vertex by construction");
         // Get the other plane contained in the next vertex
         let mut next_plane = cur_v.dual[(p_idx_in_cur_v + 1) % 3];
-        
+
         let mut cur_idx = 1;
         while cur_idx < vert_idx.len() - 1 {
             let mut test_idx = cur_idx;
             // loop through the tail of the list and swap the next vertex to cur_idx
             while test_idx < vert_idx.len() {
                 cur_v = &self.vertices[vert_idx[test_idx]];
-                p_idx_in_cur_v = cur_v.plane_idx(clipping_plane_idx).expect("All given vertices must contain clipping plane");
+                p_idx_in_cur_v = cur_v
+                    .plane_idx(clipping_plane_idx)
+                    .expect("All given vertices must contain clipping plane");
                 if cur_v.dual.contains(&next_plane) {
                     next_plane = cur_v.dual[(p_idx_in_cur_v + 1) % 3];
                     vert_idx.swap(cur_idx, test_idx);
@@ -504,21 +535,41 @@ impl ConvexCell<WithoutFaces> {
                 }
                 test_idx += 1;
             }
-            assert!(test_idx < vert_idx.len(), "There always must be a next vertex connected to the current one!");
+            assert!(
+                test_idx < vert_idx.len(),
+                "There always must be a next vertex connected to the current one!"
+            );
         }
     }
 }
 
 impl<M: ConvexCellMarker + 'static> ConvexCell<M> {
-
     /// Safely transition between two states
     fn transition<N: ConvexCellMarker>(self) -> ConvexCell<N> {
         let ConvexCell {
-            idx, loc, clipping_planes, vertices, faces, face_vertex_connections, boundary, safety_radius, dimensionality, _phantom: _
+            idx,
+            loc,
+            clipping_planes,
+            vertices,
+            faces,
+            face_vertex_connections,
+            boundary,
+            safety_radius,
+            dimensionality,
+            _phantom: _,
         } = self;
 
         ConvexCell::<N> {
-            idx, loc, clipping_planes, vertices, faces, face_vertex_connections, boundary, safety_radius, dimensionality, _phantom: PhantomData,
+            idx,
+            loc,
+            clipping_planes,
+            vertices,
+            faces,
+            face_vertex_connections,
+            boundary,
+            safety_radius,
+            dimensionality,
+            _phantom: PhantomData,
         }
     }
 
@@ -527,7 +578,12 @@ impl<M: ConvexCellMarker + 'static> ConvexCell<M> {
     }
 
     /// Compute a custom integrated quantity for this cell.
-    pub fn compute_cell_integral<D: Copy, I: CellIntegralWithData<Data = D>>(&self, extra_data: D) -> I {
+    ///
+    /// * `extra_data` - The extra data used by the cell integral, for this cell.
+    pub fn compute_cell_integral<D: Copy, I: CellIntegralWithData<Data = D>>(
+        &self,
+        extra_data: D,
+    ) -> I {
         // Compute integral from decomposition of convex cell
         let mut integrator = I::init_with_data(self, extra_data);
         for tet in self.decompose() {
@@ -542,6 +598,9 @@ impl<M: ConvexCellMarker + 'static> ConvexCell<M> {
 
     /// Compute a custom integrated quantity for the faces of this cell
     /// (non-symmetric version).
+    ///
+    /// * `extra_data` - The extra data used by the cell integral, for this cell.
+    ///                  Specify `()` for `FaceIntegral`s without extra data.
     pub fn compute_face_integrals<D: Copy, I: FaceIntegralWithData<Data = D>>(
         &self,
         extra_data: D,
@@ -554,16 +613,12 @@ impl<M: ConvexCellMarker + 'static> ConvexCell<M> {
                 continue;
             }
             let integral = &mut integrals[tet.plane_idx];
-            let integral =
-                integral.get_or_insert_with(|| FaceIntegrator::<I>::init(self, tet.plane_idx, extra_data));
+            let integral = integral
+                .get_or_insert_with(|| FaceIntegrator::<I>::init(self, tet.plane_idx, extra_data));
             integral.collect(tet.vertices[0], tet.vertices[1], tet.vertices[2], self.loc);
         }
 
-        integrals
-            .into_iter()
-            .flatten()
-            .map(|integral| integral.finalize())
-            .collect()
+        integrals.into_iter().flatten().map(|integral| integral.finalize()).collect()
     }
 
     /// Compute a custom integrated quantity for the faces of this cell.
@@ -571,8 +626,10 @@ impl<M: ConvexCellMarker + 'static> ConvexCell<M> {
     /// Symmetric version: skips faces that are shared with active cells with a
     /// smaller idx.
     ///
-    /// - `mask`: A mask indicating which for which generators convex cells are
-    ///   actually constructed.
+    /// * `extra_data` - The extra data used by the cell integral, for this cell.
+    ///                  Specify `()` for `FaceIntegral`s without extra data.
+    /// * `mask` - A mask indicating which for which generators convex cells are
+    ///            actually constructed.
     pub fn compute_face_integrals_sym<D: Copy, I: FaceIntegralWithData<Data = D>>(
         &self,
         extra_data: D,
@@ -598,29 +655,25 @@ impl<M: ConvexCellMarker + 'static> ConvexCell<M> {
                     _ => (),
                 }
             }
-            let integral =
-                integral.get_or_insert_with(|| FaceIntegrator::<I>::init(self, tet.plane_idx, extra_data));
+            let integral = integral
+                .get_or_insert_with(|| FaceIntegrator::<I>::init(self, tet.plane_idx, extra_data));
             integral.collect(tet.vertices[0], tet.vertices[1], tet.vertices[2], self.loc);
         }
 
-        integrals
-            .into_iter()
-            .flatten()
-            .map(|integral| integral.finalize())
-            .collect()
+        integrals.into_iter().flatten().map(|integral| integral.finalize()).collect()
     }
 }
 
 impl ConvexCell<WithFaces> {
-    /// Discard the computed `faces` and `face_vertex_connections`, making this [`ConvexCell`] 
-    /// safe for clipping by additional half spaces again. 
+    /// Discard the computed `faces` and `face_vertex_connections`, making this [`ConvexCell`]
+    /// safe for clipping by additional half spaces again.
     pub fn discard_faces(mut self) -> ConvexCell<WithoutFaces> {
         self.faces = None;
         self.face_vertex_connections = None;
         ConvexCell::transition(self)
     }
 
-    /// The number of *actual* faces (might be less than the number of [`HalfSpace`]s used 
+    /// The number of *actual* faces (might be less than the number of [`HalfSpace`]s used
     /// in the construction of this cell).
     pub fn face_count(&self) -> usize {
         self.faces().len()
@@ -628,16 +681,12 @@ impl ConvexCell<WithFaces> {
 
     fn faces(&self) -> &[ConvexCellFace] {
         // Safety: This state of the ConvexCell can only exist if the faces are initialized
-        unsafe{
-            self.faces.as_ref().unwrap_unchecked()
-        }
+        unsafe { self.faces.as_ref().unwrap_unchecked() }
     }
 
     fn face_vertex_connections(&self) -> &[usize] {
         // Safety: This state of the ConvexCell can only exist if the faces are initialized
-        unsafe{
-            self.face_vertex_connections.as_ref().unwrap_unchecked()
-        }
+        unsafe { self.face_vertex_connections.as_ref().unwrap_unchecked() }
     }
 
     fn half_space(&self, face_idx: usize) -> &HalfSpace {
@@ -661,15 +710,15 @@ impl ConvexCell<WithFaces> {
         self.half_space(face_idx).shift
     }
 
-    /// Get the count of the face vertices 
+    /// Get the count of the face vertices
     pub fn face_vertex_count(&self, face_idx: usize) -> usize {
         self.faces()[face_idx].vertex_count
     }
 
-    /// Get the indices of the vertices of a given face in this cell's [`Vertex`] list. 
+    /// Get the indices of the vertices of a given face in this cell's [`Vertex`] list.
     pub fn face_vertices(&self, face_idx: usize) -> &[usize] {
         let face = &self.faces()[face_idx];
-        &self.face_vertex_connections()[face.vertex_offset..face.vertex_offset+face.vertex_count]
+        &self.face_vertex_connections()[face.vertex_offset..face.vertex_offset + face.vertex_count]
     }
 }
 
@@ -704,7 +753,11 @@ impl From<ConvexCellAlternative> for ConvexCell<WithoutFaces> {
             .collect::<Vec<_>>();
 
         ConvexCell::new(
-            convex_cell_alt.loc,convex_cell_alt.idx, clipping_planes, vertices, convex_cell_alt.dimensionality 
+            convex_cell_alt.loc,
+            convex_cell_alt.idx,
+            clipping_planes,
+            vertices,
+            convex_cell_alt.dimensionality,
         )
     }
 }
@@ -750,7 +803,8 @@ mod tests {
         let anchor = DVec3::splat(1.);
         let width = DVec3::splat(2.);
         let loc = DVec3::splat(2.);
-        let volume = SimulationBoundary::cuboid(anchor, width, false, Dimensionality::ThreeD.into());
+        let volume =
+            SimulationBoundary::cuboid(anchor, width, false, Dimensionality::ThreeD.into());
         let cell = ConvexCell::init(loc, 0, &volume).with_faces();
 
         assert_eq!(cell.face_count(), 6);

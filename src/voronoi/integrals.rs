@@ -52,7 +52,7 @@ impl<T: CellIntegral> CellIntegralWithData for T {
 
 /// Example implementation of a simple cell integrator for computing the volume
 /// of a [`ConvexCell`].
-/// 
+///
 /// Use as follows:
 /// ```
 /// # use glam::DVec3;
@@ -177,21 +177,29 @@ pub trait FaceIntegralWithData: FaceIntegral {
     type Data: Copy;
 
     /// Initialize a [`CellIntegral`] with some extra data.
-    fn init_with_data<M: ConvexCellMarker>(cell: &ConvexCell<M>, clipping_plane_idx: usize, data: Self::Data) -> Self;
+    fn init_with_data<M: ConvexCellMarker>(
+        cell: &ConvexCell<M>,
+        clipping_plane_idx: usize,
+        data: Self::Data,
+    ) -> Self;
 }
 
 impl<T: FaceIntegral> FaceIntegralWithData for T {
     type Data = ();
 
-    fn init_with_data<M: ConvexCellMarker>(cell: &ConvexCell<M>, clipping_plane_idx: usize, _data: ()) -> Self {
+    fn init_with_data<M: ConvexCellMarker>(
+        cell: &ConvexCell<M>,
+        clipping_plane_idx: usize,
+        _data: (),
+    ) -> Self {
         T::init(cell, clipping_plane_idx)
     }
 }
 
-/// Struct wrapping a FaceIntegral with some extra info needed for bookkeeping.
-/// 
-/// When computing FaceIntegrals, they will always be wrapped in a FaceIntegrator,
-/// making it possible to retrieve some info about the face for which the integral was 
+/// Struct wrapping a [`FaceIntegral`] with some extra info needed for bookkeeping.
+///
+/// When computing [`FaceIntegral`]s, they will always be wrapped in a FaceIntegrator,
+/// making it possible to retrieve some info about the face for which the integral was
 /// evaluated.
 #[derive(Clone)]
 pub struct FaceIntegrator<I: FaceIntegralWithData> {
@@ -205,7 +213,11 @@ pub struct FaceIntegrator<I: FaceIntegralWithData> {
 }
 
 impl<D: Copy, I: FaceIntegralWithData<Data = D>> FaceIntegrator<I> {
-    pub(crate) fn init<M: ConvexCellMarker>(cell: &ConvexCell<M>, clipping_plane_idx: usize, data: D) -> Self {
+    pub(crate) fn init<M: ConvexCellMarker>(
+        cell: &ConvexCell<M>,
+        clipping_plane_idx: usize,
+        data: D,
+    ) -> Self {
         Self {
             left: cell.idx,
             right: cell.clipping_planes[clipping_plane_idx].right_idx,
@@ -222,7 +234,7 @@ impl<D: Copy, I: FaceIntegralWithData<Data = D>> FaceIntegrator<I> {
         self.integral = self.integral.finalize();
         self
     }
-    
+
     /// Get the index of the generator on the left of this face.
     pub fn left(&self) -> usize {
         self.left
@@ -233,22 +245,22 @@ impl<D: Copy, I: FaceIntegralWithData<Data = D>> FaceIntegrator<I> {
     pub fn right(&self) -> Option<usize> {
         self.right
     }
-    
-    /// The shift to apply to the right generator's position (for periodic boundary 
+
+    /// The shift to apply to the right generator's position (for periodic boundary
     /// conditions), if any.
     pub fn shift(&self) -> Option<DVec3> {
         self.shift
     }
-    
+
     /// The integral evaluated for this face.
     pub fn integral(&self) -> &I {
         &self.integral
     }
 }
 
-/// Example implementation of a simple FaceIntegral for computing the area *and* centroid 
+/// Example implementation of a simple FaceIntegral for computing the area *and* centroid
 /// of the faces of a [`ConvexCell`].
-/// 
+///
 /// Use as follows:
 /// ```
 /// # use glam::DVec3;
@@ -256,12 +268,12 @@ impl<D: Copy, I: FaceIntegralWithData<Data = D>> FaceIntegrator<I> {
 /// # use meshless_voronoi::integrals::AreaCentroidIntegral;
 /// # let generators = vec![DVec3::splat(1.), DVec3::splat(2.)];
 /// let voronoi_integrator = VoronoiIntegrator::build(&generators, None, DVec3::ZERO, DVec3::splat(3.), 3.try_into().unwrap(), false);
-/// // Compute areas and centroids of all the voronoi faces (treating all the faces of every ConvexCell, 
-/// // i.e. twice for each face shared between two ConvexCells, assuming they might differ 
+/// // Compute areas and centroids of all the voronoi faces (treating all the faces of every ConvexCell,
+/// // i.e. twice for each face shared between two ConvexCells, assuming they might differ
 /// // from both sides of the face).
 /// // This returns a Vec<FaceIntegrator<AreaIntegral>>.
 /// let all_face_areas = voronoi_integrator.compute_face_integrals::<AreaCentroidIntegral>();
-/// // Compute areas and centroids of all the voronoi faces (once for each face, 
+/// // Compute areas and centroids of all the voronoi faces (once for each face,
 /// // assuming they are the same from both sides of the face)
 /// let all_face_areas_sym = voronoi_integrator.compute_face_integrals_sym::<AreaCentroidIntegral>();
 /// // Compute the areas and centroids of the voronoi faces of a specific ConvexCell:
@@ -309,7 +321,7 @@ impl FaceIntegral for AreaCentroidIntegral {
 
 /// Example implementation of a simple face integral for computing the area of
 /// the faces of a [`ConvexCell`].
-/// 
+///
 /// Use as follows:
 /// ```
 /// use glam::DVec3;
@@ -317,10 +329,10 @@ impl FaceIntegral for AreaCentroidIntegral {
 /// use meshless_voronoi::integrals::AreaIntegral;
 /// # let generators = vec![DVec3::splat(1.), DVec3::splat(2.)];
 /// let voronoi_integrator = VoronoiIntegrator::build(&generators, None, DVec3::ZERO, DVec3::splat(3.), 3.try_into().unwrap(), false);
-/// // Compute areas of all the voronoi faces (twice for each face, 
+/// // Compute areas of all the voronoi faces (twice for each face,
 /// // assuming they might differ from both sides of the face)
 /// let all_face_areas = voronoi_integrator.compute_face_integrals::<AreaIntegral>();
-/// // Compute areas of all the voronoi faces (once for each face, 
+/// // Compute areas of all the voronoi faces (once for each face,
 /// // assuming they are the same from both sides of the face)
 /// let all_face_areas_sym = voronoi_integrator.compute_face_integrals_sym::<AreaIntegral>();
 /// // Compute the areas of the voronoi faces of a specific ConvexCell:

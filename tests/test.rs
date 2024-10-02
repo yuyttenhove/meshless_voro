@@ -1,6 +1,9 @@
 use float_cmp::assert_approx_eq;
 use glam::DVec3 as Vec3;
-use meshless_voronoi::{integrals::{AreaIntegral, VolumeIntegral}, Voronoi, VoronoiIntegrator};
+use meshless_voronoi::{
+    integrals::{AreaIntegral, VolumeIntegral},
+    Voronoi, VoronoiIntegrator,
+};
 use rand::prelude::*;
 use rand::rngs::StdRng;
 
@@ -18,9 +21,9 @@ macro_rules! log_time {
 
 macro_rules! vec3_approx_eq {
     ($t:ty, $a:expr, $b:expr) => {{
-        assert_approx_eq!($t, $a.x, $b.x, epsilon=1e-5);
-        assert_approx_eq!($t, $a.y, $b.y, epsilon=1e-5);
-        assert_approx_eq!($t, $a.z, $b.z, epsilon=1e-5);
+        assert_approx_eq!($t, $a.x, $b.x, epsilon = 1e-5);
+        assert_approx_eq!($t, $a.y, $b.y, epsilon = 1e-5);
+        assert_approx_eq!($t, $a.z, $b.z, epsilon = 1e-5);
     }};
 }
 
@@ -40,30 +43,17 @@ pub fn impl_meshless_voro(size: Vec3, points: Vec<Vec3>) -> Vec<VCellRaw> {
 
     let _voronoi_integrator = log_time!(
         "VoronoiIntegrator::build",
-        VoronoiIntegrator::build(
-            &points,
-            None,
-            anchor,
-            size,
-            3.try_into().unwrap(),
-            false,
-        )
+        VoronoiIntegrator::build(&points, None, anchor, size, 3.try_into().unwrap(), false,)
     );
 
-    let _voronoi2 = log_time!(
-        "Voronoi::from(&_voronoi_integrator)",
-        Voronoi::from(&_voronoi_integrator)
-    );
+    let _voronoi2 =
+        log_time!("Voronoi::from(&_voronoi_integrator)", Voronoi::from(&_voronoi_integrator));
 
-    
-    let (volumes, areas) = log_time!(
-    "Manually compute integrals -- sym",
-    {
+    let (volumes, areas) = log_time!("Manually compute integrals -- sym", {
         let volumes = _voronoi_integrator.compute_cell_integrals::<VolumeIntegral>();
         let areas = _voronoi_integrator.compute_face_integrals_sym::<AreaIntegral>();
         (volumes, areas)
     });
-
 
     let _voronoi_integrator = log_time!("With faces", _voronoi_integrator.with_faces());
     let _voronoi_raw = log_time!("extract raw info", {
@@ -77,11 +67,7 @@ pub fn impl_meshless_voro(size: Vec3, points: Vec<Vec3>) -> Vec<VCellRaw> {
 
                 assert!(convex_cell.loc == v_cell.loc());
 
-                let vs = convex_cell
-                    .vertices
-                    .iter()
-                    .map(|v| (v.loc - convex_cell.loc))
-                    .collect();
+                let vs = convex_cell.vertices.iter().map(|v| (v.loc - convex_cell.loc)).collect();
                 let face_count = v_cell.face_count();
 
                 let v_faces = (0..face_count)
@@ -93,10 +79,7 @@ pub fn impl_meshless_voro(size: Vec3, points: Vec<Vec3>) -> Vec<VCellRaw> {
                             .collect()
                     })
                     .collect();
-                let face_norm = v_cell
-                    .faces(&_voronoi2)
-                    .map(|f| f.normal())
-                    .collect();
+                let face_norm = v_cell.faces(&_voronoi2).map(|f| f.normal()).collect();
 
                 // for vx in cell.get_face_vertices(face_idx)
                 let cell_position = v_cell.loc();
@@ -118,34 +101,31 @@ pub fn impl_meshless_voro(size: Vec3, points: Vec<Vec3>) -> Vec<VCellRaw> {
         Voronoi::from(&_voronoi_integrator)
     );
 
-    
-    let (volumes2, areas2) = log_time!(
-    "Manually compute integrals -- with faces -- sym",
-    {
+    let (volumes2, areas2) = log_time!("Manually compute integrals -- with faces -- sym", {
         let volumes = _voronoi_integrator.compute_cell_integrals::<VolumeIntegral>();
         let areas = _voronoi_integrator.compute_face_integrals_sym::<AreaIntegral>();
         (volumes, areas)
     });
 
     for (volume, volume2) in volumes.iter().zip(volumes2.iter()) {
-        assert_approx_eq!(f64, volume.volume, volume2.volume,  epsilon=1e-10);
+        assert_approx_eq!(f64, volume.volume, volume2.volume, epsilon = 1e-10);
     }
     for (area, area2) in areas.iter().zip(areas2.iter()) {
         assert_eq!(area.left(), area2.left());
         assert_eq!(area.right(), area2.right());
-        assert_approx_eq!(f64, area.integral().area, area2.integral().area, epsilon=1e-10);
+        assert_approx_eq!(f64, area.integral().area, area2.integral().area, epsilon = 1e-10);
     }
 
     assert_eq!(_voronoi2.cells().len(), _voronoi3.cells().len());
     assert_eq!(_voronoi2.cells().len(), volumes.len());
     for (i, (cell, cell2)) in _voronoi2.cells().iter().zip(_voronoi3.cells().iter()).enumerate() {
-        assert_approx_eq!(f64, cell.volume(), cell2.volume(), epsilon=1e-10);
+        assert_approx_eq!(f64, cell.volume(), cell2.volume(), epsilon = 1e-10);
         assert_approx_eq!(f64, cell.volume(), volumes[i].volume);
         vec3_approx_eq!(f64, cell.centroid(), cell2.centroid());
         assert_eq!(cell.face_count(), cell2.face_count());
         for (face, face2) in cell.faces(&_voronoi2).zip(cell2.faces(&_voronoi3)) {
             // println!("{:}, {:}", face.area(), area.area);
-            assert_approx_eq!(f64, face.area(), face2.area(), epsilon=1e-10);
+            assert_approx_eq!(f64, face.area(), face2.area(), epsilon = 1e-10);
             vec3_approx_eq!(f64, face.centroid(), face2.centroid());
             vec3_approx_eq!(f64, face.normal(), face2.normal());
             // assert_approx_eq!(f64, face.area(), area.area, epsilon=1e-10);

@@ -11,8 +11,8 @@ pub struct HalfSpace {
     pub plane: Plane,
     d: f64,
     errb: f64,
-    /// The index of the generator outside of this halfspace. 
-    /// May be `None` if this is a boundary face (when using reflective boundary conditions). 
+    /// The index of the generator outside of this halfspace.
+    /// May be `None` if this is a boundary face (when using reflective boundary conditions).
     pub right_idx: Option<usize>,
     /// Shift to apply to the neighbouring generators position (only in case of periodic boundary conditions).
     pub shift: Option<DVec3>,
