@@ -107,8 +107,11 @@ macro_rules! cells_map_flatten_par {
 
 /// The main Voronoi struct.
 ///
-/// This representation has pre-calculated faces (area, normal, centroid) and
-/// cells (volume, centroid).
+/// This representation aims to be efficient and compact. 
+/// It has pre-calculated faces (storing only area, normal and centroid) and 
+/// cells (storing only volume, centroid and face-links).
+/// 
+/// If more flexibility is needed, the [`VoronoiIntegrator`] should be used instead.
 #[derive(Clone)]
 pub struct Voronoi {
     anchor: DVec3,
@@ -479,11 +482,17 @@ impl<M: ConvexCellMarker + 'static> From<&VoronoiIntegrator<M>> for Voronoi {
     }
 }
 
-/// An intermediate (meshless) representation of the Voronoi mesh.
-///
-/// Can be used to compute integrals over the faces (e.g. area, solid angle,
-/// ...) or cells ((weighted) centroid, ...). Can also be converted to a [`Voronoi`]
-/// struct, which implements the `From<VoronoiIntegrator>` trait.
+/// An (meshless) representation of the Voronoi mesh as a collection of [`ConvexCell`]s.
+/// 
+/// This representation is less efficient than the main [`Voronoi`] struct, but is more flexible.
+/// It can be used to:
+/// * Compute (custom) integrals over the faces (e.g. centroid, area, solid angle...)
+/// * Compute (custom) integrals over the cells (e.g. centroid, volume...)
+/// * Retrieve the vertices of the faces
+/// 
+/// It can also be converted into a [`Voronoi`] struct by using the `From<&VoronoiIntegrator>` trait
+/// implemented on [`Voronoi`], but note that direct construction of the [`Voronoi`] mesh will be 
+/// more efficient.
 #[derive(Clone)]
 pub struct VoronoiIntegrator<Marker: ConvexCellMarker> {
     cells: Vec<Option<ConvexCell<Marker>>>,
@@ -502,7 +511,7 @@ impl VoronoiIntegrator<WithoutFaces> {
     ///   constructed.
     /// * `anchor` - The lower left corner of the simulation volume.
     /// * `width` - The width of the simulation volume. Also determines the
-    ///   period of periodic Voronoi tessellations.
+    ///   periodicity distance of periodic Voronoi tessellations.
     /// * `dimensionality` - The dimensionality of the Voronoi tessellation. The
     ///   algorithm is mainly aimed at constructing 3D Voronoi tessellations,
     ///   but can be used for 1 or 2D as well.
@@ -604,7 +613,7 @@ impl<M: ConvexCellMarker + 'static> VoronoiIntegrator<M> {
     /// Get the [`ConvexCell`] at the specified index, if any.
     /// 
     /// When using partial construction, no [`ConvexCell`] is constructed for some generators, 
-    /// in which case this function will return None.
+    /// in which case this function will return None when retrieving unconstructed cells.
     /// 
     /// * `index` - The index of the generator whose corresponding [`ConvexCell`] to retrieve.
     pub fn get_cell_at(&self, index: usize) -> Option<&ConvexCell<M>> {
@@ -629,6 +638,8 @@ impl<M: ConvexCellMarker + 'static> VoronoiIntegrator<M> {
         cells_map!(self.cells, |cell| cell.compute_cell_integral(()))
     }
 
+    /// Compute a custom cell integral for the active cells in this
+    /// representation, for integrals that need some external data.
     pub fn compute_cell_integrals_with_data<D: Copy + Sync, I: CellIntegralWithData<Data = D>>(
         &self,
         extra_data: D,
@@ -643,12 +654,13 @@ impl<M: ConvexCellMarker + 'static> VoronoiIntegrator<M> {
     /// this representation.
     ///
     /// Assumes non-symmetric integral (i.e. The integral of a face evaluated
-    /// from the left cell might be different that the integral evaluated
+    /// from the left cell might be different than the integral evaluated
     /// from the right cell). Therefore all faces are treated twice.
     /// For symmetric integrals, `compute_face_integrals_sym` will be more
     /// efficient.
     ///
-    /// Returns a vector with for each active cell a vector of face integrals.
+    /// Returns a flat vector with of [`FaceIntegrator`]s storing the necessary info to link the faces 
+    /// to their respective cells.
     pub fn compute_face_integrals<I: FaceIntegral>(&self) -> Vec<FaceIntegrator<I>> {
         #[cfg(feature = "rayon")]
         return cells_map_flatten_par!(self.cells, |cell| cell.compute_face_integrals(()));
@@ -656,6 +668,15 @@ impl<M: ConvexCellMarker + 'static> VoronoiIntegrator<M> {
         cells_map_flatten!(self.cells, |cell| cell.compute_face_integrals(()))
     }
 
+    /// Compute a custom face integral for all the faces of each active cell in
+    /// this representation.
+    ///
+    /// Assumes symmetric integral (i.e. The integral of a face evaluated
+    /// from the left cell will be the same as the integral evaluated
+    /// from the right cell).
+    ///
+    /// Returns a flat vector with of [`FaceIntegrator`]s storing the necessary info to link the faces 
+    /// to their respective cells.
     pub fn compute_face_integrals_sym<I: FaceIntegral>(&self) -> Vec<FaceIntegrator<I>> {
         #[cfg(feature = "rayon")]
         return cells_map_flatten_par!(self.cells, |cell| cell
@@ -665,6 +686,18 @@ impl<M: ConvexCellMarker + 'static> VoronoiIntegrator<M> {
             .compute_face_integrals_sym((), &self.cell_is_active))
     }
 
+    /// Compute a custom face integral, with some extra associated data, 
+    /// for all the faces of each active cell in this representation.
+    /// The extra data is cloned between faces.
+    ///
+    /// Assumes non-symmetric integral (i.e. The integral of a face evaluated
+    /// from the left cell might be different than the integral evaluated
+    /// from the right cell). Therefore all faces are treated twice.
+    /// For symmetric integrals, `compute_face_integrals_sym` will be more
+    /// efficient.
+    ///
+    /// Returns a flat vector with of [`FaceIntegrator`]s storing the necessary info to link the faces 
+    /// to their respective cells.
     pub fn compute_face_integrals_with_data<D: Copy + Sync, I: FaceIntegralWithData<Data = D>>(
         &self,
         extra_data: D,
@@ -675,6 +708,16 @@ impl<M: ConvexCellMarker + 'static> VoronoiIntegrator<M> {
         cells_map_flatten!(self.cells, |cell| cell.compute_face_integrals(extra_data))
     }
 
+    /// Compute a custom face integral, with some extra associated data, 
+    /// for all the faces of each active cell in this representation.
+    /// The extra data is cloned between faces.
+    ///
+    /// Assumes symmetric integral (i.e. The integral of a face evaluated
+    /// from the left cell will be the same as the integral evaluated
+    /// from the right cell).
+    ///
+    /// Returns a flat vector with of [`FaceIntegrator`]s storing the necessary info to link the faces 
+    /// to their respective cells.
     pub fn compute_face_integrals_sym_with_data<D: Copy + Sync, I: FaceIntegralWithData<Data = D>>(
         &self,
         extra_data: D,
@@ -711,7 +754,7 @@ impl<M: ConvexCellMarker + 'static> VoronoiIntegrator<M> {
 #[cfg(test)]
 mod tests {
     use super::{
-        integrals::{AreaCentroidIntegrator, VolumeCentroidIntegrator},
+        integrals::{AreaCentroidIntegral, VolumeCentroidIntegral},
         *,
     };
     use float_cmp::assert_approx_eq;
@@ -1063,11 +1106,11 @@ mod tests {
             true,
         );
 
-        let area_centroids = integrator.compute_face_integrals::<AreaCentroidIntegrator>();
-        let volume_centroids = integrator.compute_cell_integrals::<VolumeCentroidIntegrator>();
+        let area_centroids = integrator.compute_face_integrals::<AreaCentroidIntegral>();
+        let volume_centroids = integrator.compute_cell_integrals::<VolumeCentroidIntegral>();
 
         assert_eq!(area_centroids.len(), voronoi.faces().len());
-        for (i, FaceIntegrator { integral: AreaCentroidIntegrator{area, centroid}, ..}) in area_centroids.iter().enumerate() {
+        for (i, FaceIntegrator { integral: AreaCentroidIntegral{area, centroid}, ..}) in area_centroids.iter().enumerate() {
             assert_eq!(*area, voronoi.faces()[i].area());
             assert_eq!(*centroid, voronoi.faces()[i].centroid());
         }

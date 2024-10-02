@@ -7,7 +7,7 @@ use crate::voronoi::{
 };
 
 use super::{
-    convex_cell::{ConvexCell, ConvexCellMarker}, integrals::{CellIntegral, VolumeCentroidIntegrator}
+    convex_cell::{ConvexCell, ConvexCellMarker}, integrals::{CellIntegral, VolumeCentroidIntegral}
 };
 
 /// A Voronoi cell.
@@ -47,7 +47,7 @@ impl VoronoiCell {
     ) -> Self {
         let idx = convex_cell.idx;
         let loc = convex_cell.loc;
-        let mut volume_centroid_integral = VolumeCentroidIntegrator::init();
+        let mut volume_centroid_integral = VolumeCentroidIntegral::init();
 
         let mut maybe_faces: Vec<Option<VoronoiFace>> =
             (0..convex_cell.clipping_planes.len()).map(|_| None).collect();
@@ -98,7 +98,7 @@ impl VoronoiCell {
         // Filter out uninitialized faces and finalize the rest
         faces.extend(maybe_faces.into_iter().flatten().map(|face| face.finalize()));
 
-        let VolumeCentroidIntegrator { volume, centroid } = volume_centroid_integral.finalize();
+        let VolumeCentroidIntegral { volume, centroid } = volume_centroid_integral.finalize();
 
         VoronoiCell::init(loc, centroid, volume, convex_cell.safety_radius, convex_cell.idx)
     }
