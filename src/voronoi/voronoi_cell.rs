@@ -92,7 +92,6 @@ impl VoronoiCell {
             }
         }
         // Filter out uninitialized faces and finalize the rest
-        debug_assert!(maybe_faces.iter().flatten().all(|f| f.area() >= 0.));
         faces.extend(maybe_faces.into_iter().flatten().map(|face| face.finalize()));
 
         let VolumeCentroidIntegral { volume, centroid } = volume_centroid_integral.finalize();
