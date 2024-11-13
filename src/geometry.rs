@@ -274,24 +274,24 @@ pub(crate) fn in_sphere_test_exact(a: &[i64], b: &[i64], c: &[i64], d: &[i64], v
     let d = big_int!(d, a);
     let v = big_int!(v, a);
 
-    // We need to compute the sign of the 4×4 determinant with b, c, d, v as rows.
+    // We need to compute the sign of the 4×4 determinant with b, c, d, v as columns.
     let mut determinant = Integer::default();
 
     // Let's do it in 4 steps by developing over the last column
-    // Step 1 (b-row):
+    // Step 1 :
     let mut tmp1: Integer;
     let mut det: Integer;
-    big_int_det3x3!(c[0], c[1], c[2], d[0], d[1], d[2], v[0], v[1], v[2], tmp1, det);
-    determinant += &b[3] * &det;
-    // Step 2 (c-row)
-    big_int_det3x3!(b[0], b[1], b[2], d[0], d[1], d[2], v[0], v[1], v[2], tmp1, det);
-    determinant -= &c[3] * &det;
-    // Step 3 (d-row)
-    big_int_det3x3!(b[0], b[1], b[2], c[0], c[1], c[2], v[0], v[1], v[2], tmp1, det);
-    determinant += &d[3] * &det;
-    // Step 4 (v-row)
-    big_int_det3x3!(b[0], b[1], b[2], c[0], c[1], c[2], d[0], d[1], d[2], tmp1, det);
-    determinant -= &v[3] * &det;
+    big_int_det3x3!(b[1], c[1], d[1], b[2], c[2], d[2], b[3], c[3], d[3], tmp1, det);
+    determinant -= &v[0] * &det;
+    // Step 2 
+    big_int_det3x3!(b[0], c[0], d[0], b[2], c[2], d[2], b[3], c[3], d[3], tmp1, det);
+    determinant += &v[1] * &det;
+    // Step 3 
+    big_int_det3x3!(b[0], c[0], d[0], b[1], c[1], d[1], b[3], c[3], d[3], tmp1, det);
+    determinant -= &v[2] * &det;
+    // Step 4 
+    big_int_det3x3!(b[0], c[0], d[0], b[1], c[1], d[1], b[2], c[2], d[2], tmp1, det);
+    determinant += &v[3] * &det;
 
     #[cfg(any(feature = "dashu", feature = "ibig", feature = "rug"))]
     let result = determinant.signum().to_f64();
@@ -356,10 +356,13 @@ impl Aabb {
 #[cfg(test)]
 mod tests {
     use glam::DVec3;
+    use rand::{distributions::Uniform, prelude::*};
 
     use crate::geometry::{signed_area_tri, signed_volume_tet};
+    use crate::HalfSpace;
+    use crate::voronoi::boundary::SimulationBoundary;
 
-    use super::{Aabb, Plane, Sphere};
+    use super::{in_sphere_test, in_sphere_test_exact, intersect_planes, Aabb, Plane, Sphere};
 
     #[test]
     fn test_signed_volume() {
@@ -501,5 +504,45 @@ mod tests {
             },
         );
         assert!(plane.intersects_aabb(&aabb));
+    }
+
+    #[test]
+    fn test_insphere_equivalence() {
+        let boundary = SimulationBoundary::cuboid(DVec3::ZERO, DVec3::ONE, false, crate::Dimensionality::ThreeD);
+        let mut rng = thread_rng();
+        let distr = Uniform::new(0., 1.);
+        let rand_dvec3 = |rng: &mut ThreadRng| {DVec3::new(rng.sample(distr),rng.sample(distr), rng.sample(distr))};
+        for _ in 0..10000 {
+            let tet = vec![rand_dvec3(&mut rng), rand_dvec3(&mut rng), rand_dvec3(&mut rng), rand_dvec3(&mut rng)];
+            let v1 = tet[0] - tet[1];
+            let v2 = tet[0] - tet[2];
+            let v3 = tet[0] - tet[3];
+            let normal = v1.cross(v2).normalize();
+            if normal.dot(v3) < 0. {
+                /* Incorrectly oriented tetrahedron */
+                continue;
+            }
+            let p1 = Plane::new(v1.normalize(), tet[0] + 0.5 * v1);
+            let p2 = Plane::new(v2.normalize(), tet[0] + 0.5 * v2);
+            let p3 = Plane::new(v3.normalize(), tet[0] + 0.5 * v3);
+            let vert = intersect_planes(&p1, &p2, &p3);
+
+            let ngb = rand_dvec3(&mut rng);
+            let v4 = tet[0] - ngb;
+            let h4 = HalfSpace::new(v4.normalize(), tet[0] + 0.5 * v4, None, None);
+            let clip_plane = h4.clip(vert);
+
+            let a = boundary.iloc(tet[0]);
+            let b = boundary.iloc(tet[1]);
+            let c = boundary.iloc(tet[2]);
+            let d = boundary.iloc(tet[3]);
+            let v = boundary.iloc(ngb);
+            let clip_sphere = in_sphere_test(tet[0], tet[1], tet[2], tet[3], ngb);
+            let clip_sphere_sgn = clip_sphere.signum();
+            let clip_sphere_exact = in_sphere_test_exact(&a, &b, &c, &d, &v);
+
+            assert_eq!(clip_plane, clip_sphere_sgn);
+            assert_eq!(clip_plane, clip_sphere_exact);
+        }
     }
 }

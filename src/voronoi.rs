@@ -17,7 +17,7 @@ pub use generator::Generator;
 pub use voronoi_cell::VoronoiCell;
 pub use voronoi_face::VoronoiFace;
 
-mod boundary;
+pub(crate) mod boundary;
 pub mod convex_cell;
 #[allow(unused)]
 mod convex_cell_alternative;
