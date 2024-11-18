@@ -5,7 +5,6 @@ use super::{half_space::HalfSpace, Dimensionality};
 #[derive(Clone)]
 pub(crate) struct SimulationBoundary {
     anchor: DVec3,
-    width: DVec3,
     inverse_width: DVec3,
     pub dimensionality: Dimensionality,
     pub clipping_planes: Vec<HalfSpace>,
@@ -40,9 +39,8 @@ impl SimulationBoundary {
         ];
 
         Self {
-            anchor,
-            width,
-            inverse_width: 1. / width,
+            anchor: anchor - width,
+            inverse_width: 1. / (3. * width),
             dimensionality,
             clipping_planes,
         }
@@ -50,7 +48,7 @@ impl SimulationBoundary {
 
     pub fn iloc(&self, loc: DVec3) -> [i64; 3] {
         // Rescale the coordinates to fall within [1, 2):
-        let loc = DVec3::splat(1.) + 0.3333333333333 * (loc - self.anchor + self.width) * self.inverse_width;
+        let loc = DVec3::splat(1.) + (loc - self.anchor) * self.inverse_width;
         debug_assert!(loc.x >= 1. && loc.x < 2.);
         debug_assert!(loc.y >= 1. && loc.y < 2.);
         debug_assert!(loc.z >= 1. && loc.z < 2.);
